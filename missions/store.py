@@ -30,8 +30,12 @@ def events_path(mid):
 
 
 def new_mission(sentence: str, team: dict, limits: dict, test_months: str) -> dict:
+    if not isinstance(team, dict) or test_months not in ("team", "ask"):
+        raise ValueError("bad team or test_months")
     for r in ROLES:
-        t = team.get(r) or {}
+        t = team.get(r)
+        if not isinstance(t, dict):
+            raise ValueError(f"bad team entry for {r}: {t}")
         if t.get("model") not in MODELS or t.get("effort") not in EFFORTS:
             raise ValueError(f"bad team entry for {r}: {t}")
     config.home().mkdir(parents=True, exist_ok=True)

@@ -84,3 +84,29 @@ def test_work_dir_empty():
     d = config.work_dir(3, "lead")
     (d / "f").write_text("x")
     assert list(config.work_dir(3, "lead").iterdir()) == []
+
+
+def test_work_dir_nested_removed():
+    d = config.work_dir(4, "lead")
+    (d / "a" / "b").mkdir(parents=True)
+    (d / "a" / "b" / "f").write_text("x")
+    assert list(config.work_dir(4, "lead").iterdir()) == []
+
+
+@pytest.mark.parametrize("team", ["x", None, {**TEAM, "lead": "opus"}, {"lead": TEAM["lead"]}])
+def test_non_dict_team_refused(team):
+    with pytest.raises(ValueError):
+        mk(team=team)
+
+
+def test_bad_test_months_refused():
+    with pytest.raises(ValueError):
+        store.new_mission("g", TEAM, LIMITS, "owner")
+
+
+def test_settings_missing_corrupt_roundtrip():
+    assert config.settings() == {}
+    config.save_settings({"ntfy_topic": "t"})
+    assert config.settings() == {"ntfy_topic": "t"}
+    (config.home() / "settings.json").write_text("{nope")
+    assert config.settings() == {}

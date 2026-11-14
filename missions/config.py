@@ -32,9 +32,8 @@ def vault() -> Path:
 
 def work_dir(mid, role) -> Path:
     d = home() / "_work" / str(mid) / role
-    for f in (d.rglob("*") if d.exists() else []):
-        if f.is_file() or f.is_symlink():
-            f.unlink()
+    if d.exists():
+        shutil.rmtree(d)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
