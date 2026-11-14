@@ -1,0 +1,43 @@
+{
+ "id": 2,
+ "title": "Demo brief",
+ "sentence": "Demo: a second mission, still writing its brief.",
+ "created": "2026-01-01T09:00:00+00:00",
+ "status": "briefing",
+ "team": {
+  "lead": {
+   "model": "opus",
+   "effort": "high"
+  },
+  "builder": {
+   "model": "fable",
+   "effort": "high"
+  },
+  "doubter": {
+   "model": "sonnet",
+   "effort": "high"
+  },
+  "defender": {
+   "model": "opus",
+   "effort": "high"
+  }
+ },
+ "limits": {
+  "tries": {
+   "n": 40
+  }
+ },
+ "test_months": "team",
+ "brief": null,
+ "round": 0,
+ "step": null,
+ "sessions": {},
+ "versions": [],
+ "pending": {},
+ "empty_rounds": 0,
+ "run_seconds": 4200,
+ "usage_start": null,
+ "cost_usd": 0.0,
+ "reads": 0,
+ "result": null
+}

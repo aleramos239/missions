@@ -1,0 +1,8 @@
+{"n": 1, "at": "2026-01-01T09:01:00+00:00", "type": "chat", "who": "owner", "to": null, "text": "Demo: pass a made-up eval half the time.", "data": null, "for_workers": true}
+{"n": 2, "at": "2026-01-01T09:02:00+00:00", "type": "chat", "who": "lead", "to": null, "text": "Round 1. Nothing has run yet. I ask the Builder for two ideas.", "data": null, "for_workers": true}
+{"n": 3, "at": "2026-01-01T09:03:00+00:00", "type": "chat", "who": "builder", "to": null, "text": "v01 built: orders 20 pts out, stop and full target. In-sample table running.", "data": null, "for_workers": true}
+{"n": 4, "at": "2026-01-01T09:04:00+00:00", "type": "chat", "who": "judge", "to": null, "text": "v01 done. Best box passes 22 %.", "data": {"line": "v01 \u00b7 40 boxes \u00b7 312 trades \u00b7 3.1 a week \u00b7 21 of 40 boxes make money"}, "for_workers": true}
+{"n": 5, "at": "2026-01-01T09:05:00+00:00", "type": "chat", "who": "doubter", "to": null, "text": "One year makes most of the money. Run it without that year.", "data": null, "for_workers": true}
+{"n": 6, "at": "2026-01-01T09:06:00+00:00", "type": "chat", "who": "defender", "to": null, "text": "Agreed. Asking for the next run.", "data": null, "for_workers": true}
+{"n": 7, "at": "2026-01-01T09:07:00+00:00", "type": "chat", "who": "owner", "to": "lead", "text": "how long until the next one?", "data": null, "for_workers": true}
+{"n": 8, "at": "2026-01-01T09:08:00+00:00", "type": "step", "who": "engine", "to": null, "text": "build", "data": null, "for_workers": true}

@@ -1,0 +1,152 @@
+{
+ "id": 1,
+ "title": "Demo straddle",
+ "sentence": "Demo: pass a made-up eval half the time.",
+ "created": "2026-01-01T09:00:00+00:00",
+ "status": "running",
+ "team": {
+  "lead": {
+   "model": "opus",
+   "effort": "high"
+  },
+  "builder": {
+   "model": "fable",
+   "effort": "high"
+  },
+  "doubter": {
+   "model": "sonnet",
+   "effort": "high"
+  },
+  "defender": {
+   "model": "opus",
+   "effort": "high"
+  }
+ },
+ "limits": {
+  "tries": {
+   "n": 40
+  }
+ },
+ "test_months": "team",
+ "brief": {
+  "goal": {
+   "kind": "eval",
+   "target": 0.5,
+   "rule": "apex_50k_legacy"
+  },
+  "idea": "Demo: a made-up 9:30 straddle on NQ.",
+  "fixed": [
+   "NQ only",
+   "9:30 ET entry"
+  ],
+  "may_change": [
+   "distance of the orders",
+   "stop and target"
+  ],
+  "fewest_trades_week": 2,
+  "notes": "Every number in this folder is fake."
+ },
+ "round": 2,
+ "step": "build",
+ "sessions": {},
+ "versions": [
+  {
+   "name": "demo_v01",
+   "version": "v01",
+   "state": "done",
+   "round": 1,
+   "box_label": "20 \u00b7 #14",
+   "job_id": null,
+   "gate": {
+    "goal": {
+     "value": 0.22
+    },
+    "lines": [
+     {
+      "line": "luck",
+      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
+      "ok": false
+     }
+    ],
+    "charges": []
+   }
+  },
+  {
+   "name": "demo_v02",
+   "version": "v02",
+   "state": "done",
+   "round": 1,
+   "box_label": "32 \u00b7 #9",
+   "job_id": null,
+   "gate": {
+    "goal": {
+     "value": 0.31
+    },
+    "lines": [
+     {
+      "line": "luck",
+      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
+      "ok": false
+     }
+    ],
+    "charges": []
+   }
+  },
+  {
+   "name": "demo_v03",
+   "version": "v03",
+   "state": "done",
+   "round": 2,
+   "box_label": "20 \u00b7 #22",
+   "job_id": null,
+   "gate": {
+    "goal": {
+     "value": 0.27
+    },
+    "lines": [
+     {
+      "line": "luck",
+      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
+      "ok": false
+     }
+    ],
+    "charges": []
+   }
+  },
+  {
+   "name": "demo_v04",
+   "version": "v04",
+   "state": "done",
+   "round": 2,
+   "box_label": "40 \u00b7 #14",
+   "job_id": null,
+   "gate": {
+    "goal": {
+     "value": 0.38
+    },
+    "lines": [
+     {
+      "line": "luck",
+      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
+      "ok": false
+     }
+    ],
+    "charges": []
+   }
+  }
+ ],
+ "pending": {
+  "tries": {
+   "mission": 4,
+   "family_on_file": 0,
+   "total": 4,
+   "needed_t": 3.5
+  }
+ },
+ "empty_rounds": 0,
+ "run_seconds": 4200,
+ "usage_start": null,
+ "cost_usd": 0.0,
+ "reads": 0,
+ "result": null
+}

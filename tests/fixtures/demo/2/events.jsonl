@@ -1,0 +1,2 @@
+{"n": 1, "at": "2026-01-01T09:01:00+00:00", "type": "chat", "who": "owner", "to": null, "text": "Demo: a second mission, still writing its brief.", "data": null, "for_workers": true}
+{"n": 2, "at": "2026-01-01T09:02:00+00:00", "type": "chat", "who": "lead", "to": null, "text": "Which account? I will use the Apex 50K eval.", "data": {"ask": {"q": "Which account? I will use the Apex 50K eval.", "options": ["Yes", "Use the 100K"]}}, "for_workers": true}

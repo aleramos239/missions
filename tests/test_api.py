@@ -285,3 +285,17 @@ def test_minors():
                  {"team": {**TEAM, "boss": TEAM["lead"]}}):
         assert call("PATCH", f"/api/missions/{mid}", json=body).status_code == 400
     assert call("POST", f"/api/missions/{mid}/chat", json={"to": "nobody", "text": "hi"}).status_code == 400
+
+
+def test_page_and_brief_route():
+    r = call("GET", "/")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache" and "<title>Missions" in r.text
+    assert call("GET", "/static/missions.css").status_code == 200
+    mid = mk(status="briefing")
+    fake = FakeHB()
+    fake.accounts_ = [{"id": "acct1", "bans": ["no bots"]}]
+    m = store.load(mid)
+    m["brief"] = {"goal": {"kind": "eval", "target": 0.5, "rule": "acct1"}, "idea": "x"}
+    store.save(m)
+    b = call("GET", f"/api/missions/{mid}/brief", fake=fake).json()
+    assert b["bans"] == ["no bots"] and b["account"]["id"] == "acct1"

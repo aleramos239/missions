@@ -1,0 +1,17 @@
+{
+ "goal": {
+  "kind": "eval",
+  "target": 0.5,
+  "rule": "apex_50k_legacy"
+ },
+ "round": 0,
+ "tries": {
+  "mission": 0,
+  "family_on_file": 0,
+  "total": 0,
+  "needed_t": null
+ },
+ "versions": [],
+ "best": null,
+ "reads": 0
+}

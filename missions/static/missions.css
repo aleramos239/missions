@@ -1,0 +1,153 @@
+html.hb-apple .hb-tb [hidden] { display: none !important; }
+.mx-i-link { --i: var(--sf-link); --iw: var(--sf-link-w); --ih: var(--sf-link-h); }
+html.hb-apple .hb-machine[role=button] { cursor: default; }
+/* one color per worker (Apple's increased-contrast system colors; green and red stay for money) */
+html.hb-apple { --mx-lead:#0040dd; --mx-builder:#8a5200; --mx-doubter:#8944ab; --mx-defender:#00707c; --mx-judge:#6f5a3e; }
+html.hb-apple[data-theme="dark"] { --mx-lead:#6ea8ff; --mx-builder:#e0a040; --mx-doubter:#c79be0; --mx-defender:#4fc3cf; --mx-judge:#c8ae84; }
+html.hb-apple [data-who=Lead] { --who: var(--mx-lead); }
+html.hb-apple [data-who=Builder] { --who: var(--mx-builder); }
+html.hb-apple [data-who=Doubter] { --who: var(--mx-doubter); }
+html.hb-apple [data-who=Defender] { --who: var(--mx-defender); }
+html.hb-apple [data-who=Judge] { --who: var(--mx-judge); }
+html.hb-apple [data-who=You] { --who: var(--a-label); }
+html.hb-apple [data-who=Tests] { --who: var(--a-accent-on); }
+html.hb-apple .feed-row[data-who] .h > b, html.hb-apple .srow[data-who] .n, html.hb-apple .f[data-who] .k, html.hb-apple .mx-lane[data-who] > span { color: var(--who); }
+html.hb-apple .mx-lane[data-who] .mx-trk i { background: var(--who); }
+html.hb-apple .mx-lane[data-who=Tests] > span { color: var(--a-label-2); }
+html.hb-apple .hb-side .sd.mx-ico-chat { --ico: var(--sf-journal); --ico-w: var(--sf-journal-w); --ico-h: var(--sf-journal-h); }
+/* one word of status ("Working"), not the Desk's two-line block: size to it */
+html.hb-apple #tbRun .hb-status, html.hb-apple #tbRun .hb-rd-col { width: auto !important; min-width: 0 !important; flex: none; }
+/* Missions: only what the Desk has no part for. Every value is a Homebase token. */
+html.hb-apple .hb-side .nav[data-i]::before { -webkit-mask: var(--i) center / var(--iw) var(--ih) no-repeat; mask: var(--i) center / var(--iw) var(--ih) no-repeat; }
+html.hb-apple .hb-side .nav > span + span { flex: none; margin-left: 8px; font-size: 11px; line-height: 14px; font-weight: 510; color: var(--a-label-pane-2); font-variant-numeric: tabular-nums; }
+html.hb-apple .hb-side .nav.sel > span + span { color: inherit; }
+html.hb-apple .hb-side .sd.mx-done { background: var(--a-label-pane-2); }
+html.hb-apple .hb-side .sd.mx-miss { background: var(--a-label-pane-3); }
+.mx-i-new { --i: var(--sf-plus); --iw: var(--sf-plus-w); --ih: var(--sf-plus-h); }
+.mx-i-chat { --i: var(--sf-journal); --iw: var(--sf-journal-w); --ih: var(--sf-journal-h); }
+.mx-i-run { --i: var(--sf-clock); --iw: var(--sf-clock-w); --ih: var(--sf-clock-h); }
+html.hb-apple .hb-side .sd.mx-ico-chart { --ico: var(--sf-chart); --ico-w: var(--sf-chart-w); --ico-h: var(--sf-chart-h); }
+html.hb-apple .hb-side .sd.mx-ico-star { --ico: var(--sf-star); --ico-w: var(--sf-star-w); --ico-h: var(--sf-star-h); }
+html.hb-apple .hb-side .sd.mx-ico-grid { --ico: var(--sf-calendar); --ico-w: var(--sf-calendar-w); --ico-h: var(--sf-calendar-h); }
+html.hb-apple .hb-side .sd.mx-ico-hist { --ico: var(--sf-history); --ico-w: var(--sf-history-w); --ico-h: var(--sf-history-h); }
+html.hb-apple .hb-side .sd.mx-ico-shield { --ico: var(--sf-shield); --ico-w: var(--sf-shield-w); --ico-h: var(--sf-shield-h); }
+html.hb-apple .hb-side .sd.mx-ico-check { --ico: var(--sf-check); --ico-w: var(--sf-check-w); --ico-h: var(--sf-check-h); }
+html.hb-apple .hb-side .sd.mx-ico-x { --ico: var(--sf-xmark); --ico-w: var(--sf-xmark-w); --ico-h: var(--sf-xmark-h); }
+html.hb-apple .hb-side .sd.mx-ico-clock { --ico: var(--sf-clock); --ico-w: var(--sf-clock-w); --ico-h: var(--sf-clock-h); }
+
+/* the toolbar chip: the Desk paints it red for chart trading; here it is plain news */
+html.hb-apple .hb-ct-chip { background: var(--a-fill) !important; color: var(--a-label-2) !important; }
+
+/* a section heading with a picker on its right (the Activity page's head, at heading size) */
+html.hb-apple .mx-sech { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 22px 0 8px; padding: 0 10px; }
+html.hb-apple .mx-sech .hb-sec-h { margin: 0; padding: 0; }
+html.hb-apple .mx-sech .hb-field { width: auto; }
+
+/* the team chat: the Activity feed, one row a message */
+html.hb-apple .mx-chat .act-card { margin-top: 0; }
+html.hb-apple .mx-chat .feed-row { padding-top: 8px; padding-bottom: 8px; }
+html.hb-apple .mx-chat .feed .h b { font-weight: 590; }
+html.hb-apple .mx-chat .feed .h .tag { margin-left: 6px; vertical-align: 1px; }
+html.hb-apple .mx-chat .feed .h p { margin: 2px 0 0; max-width: 64ch; }
+html.hb-apple .mx-chat .feed .raw { padding-left: 86px; }
+html.hb-apple .mx-chat .feed-row.you .h p { color: var(--a-label); }
+html.hb-apple .mx-compose { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 8px; margin: 0 -20px; padding: 12px 20px 44px; background: var(--a-window); box-shadow: 0 -8px 8px -8px var(--a-sep); }
+html.hb-apple .mx-compose .hb-field { flex: 1 1 auto; height: 28px; font-size: 13px; }
+html.hb-apple .mx-compose .btn { height: 28px; border-radius: var(--hb-bubble-r); }
+
+/* running now: who was busy when, one lane a teammate */
+html.hb-apple .mx-lanes { margin: 0; padding: 12px 14px 10px; border-radius: 12px; background: var(--a-group); }
+html.hb-apple .mx-lane { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 12px; height: 22px; font-size: 11px; line-height: 14px; color: var(--a-label-2); }
+html.hb-apple .mx-trk { position: relative; height: 6px; border-radius: 3px; background: var(--a-track); }
+html.hb-apple .mx-trk i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--a-accent-on); }
+html.hb-apple .mx-trk i.mx-now { background: var(--a-accent-on); }
+html.hb-apple .mx-trk b { position: absolute; top: -4px; bottom: -4px; width: 1px; margin-left: -.5px; background: var(--a-label-3); }
+html.hb-apple .mx-axis { position: relative; height: 14px; margin: 8px 0 0 88px; font-size: 11px; line-height: 14px; color: var(--a-label-2); font-variant-numeric: tabular-nums; }
+html.hb-apple .mx-axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+html.hb-apple .mx-axis span:first-child { transform: none; }
+html.hb-apple .mx-axis span:last-child { transform: translateX(-100%); }
+html.hb-apple .srow .rs .tl-track { display: inline-block; vertical-align: middle; width: 96px; }
+html.hb-apple .srow.mx-norm { grid-template-columns: minmax(0, 1fr) auto 76px; }
+
+/* the heat map: 40 numbered boxes, green made money, red lost, deeper = more; the number in each is the picker's */
+html.hb-apple .mx-hm { width: 100%; border-collapse: separate; border-spacing: 3px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+html.hb-apple .mx-hm th { padding: 0 4px 2px; font-size: 11px; line-height: 14px; font-weight: 400; color: var(--a-label-2); text-align: center; }
+html.hb-apple .mx-hm th.mx-rh { width: 104px; text-align: left; }
+html.hb-apple .mx-hm td { position: relative; height: 44px; padding: 0; border-radius: var(--hb-bubble-r); background: color-mix(in srgb, var(--mx-c, var(--a-label)) var(--s), var(--a-window)); }
+html.hb-apple .mx-hm td.up { --mx-c: var(--a-green); }
+html.hb-apple .mx-hm td.dn { --mx-c: var(--a-red); }
+html.hb-apple .mx-hm td button { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 44px; padding: 0 2px; border: 0; border-radius: inherit; background: transparent; color: var(--a-label); font: inherit; font-size: clamp(11px, 2.5cqi, 13px); line-height: 16px; white-space: nowrap; cursor: pointer; }
+html.hb-apple .mx-hm td button:hover { background: var(--a-hover); }
+html.hb-apple .mx-hm td button:focus-visible { outline: 2px solid var(--a-focus); outline-offset: 2px; }
+html.hb-apple .mx-hm td small { font-size: 10px; line-height: 13px; font-weight: 400; color: var(--a-label-2); }
+html.hb-apple .mx-hm td.nb { box-shadow: inset 0 0 0 1.5px var(--a-label-3); }
+html.hb-apple .mx-hm td.pk { box-shadow: inset 0 0 0 2px var(--a-label); }
+html.hb-apple .mx-hm td.pk button { font-weight: 650; }
+html.hb-apple .mx-hm td.mx-sel { outline: 2px solid var(--a-label-2); outline-offset: 1px; }
+html.hb-apple .seg.mx-hmseg { margin: 0 0 8px; }
+/* narrow window: smaller numbers, a two-line stop label, no $ (the caption says dollars); the + / − sign always stays */
+html.hb-apple .mx-hmwrap { container-type: inline-size; }
+@container (max-width: 520px) {
+  html.hb-apple .mx-hm { border-spacing: 2px; }
+  html.hb-apple .mx-hm th.mx-rh { width: 60px; padding-right: 2px; white-space: normal; line-height: 13px; }
+  html.hb-apple .mx-hm .mx-cur { display: none; }
+}
+@container (max-width: 300px) { html.hb-apple .mx-hm td button { font-size: 10px; } html.hb-apple .mx-hm th.mx-rh { width: 52px; } }
+/* eval pass: firm and eval menus, and the every-eval list you can click */
+html.hb-apple .srow.mx-pick { grid-template-columns: minmax(0, 1fr) 260px; }
+html.hb-apple .srow.mx-pick .hb-field { width: 100%; }
+html.hb-apple #passAll .acct { cursor: pointer; }
+html.hb-apple #passAll .acct[aria-pressed="true"] .nm, html.hb-apple #passAll .acct[aria-pressed="true"] .kvi { font-weight: 590; }
+html.hb-apple #passAll .acct:focus-visible { outline: 2px solid var(--a-accent-text); outline-offset: -2px; }
+html.hb-apple .mx-hmwrap { margin: 0; padding: 10px 11px 12px; border-radius: 12px; background: var(--a-group); }
+
+/* honesty rows: a check or a cross, never color alone */
+html.hb-apple .mx-mark { flex: none; width: 18px; height: 18px; background: var(--a-label-2); -webkit-mask: var(--m) center / 12px auto no-repeat; mask: var(--m) center / 12px auto no-repeat; }
+html.hb-apple .mx-mark.ok { --m: var(--sf-check); }
+html.hb-apple .mx-mark.no { --m: var(--sf-xmark); background: var(--a-label); }
+html.hb-apple .mx-mark.lock { --m: var(--sf-lock); background: var(--a-label-3); }
+html.hb-apple .agroup .acct .grow { flex: 1 1 auto; min-width: 0; }
+html.hb-apple .agroup .acct .sub { display: block; font-size: 11px; line-height: 14px; color: var(--a-label-2); }
+html.hb-apple .agroup .acct.tall { min-height: 48px; padding-top: 6px !important; padding-bottom: 6px !important; }
+html.hb-apple .eq svg .mx-try { stroke: var(--a-label-3); stroke-width: 5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+html.hb-apple .eq svg .mx-luck { fill: none; stroke: var(--a-label-3); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+html.hb-apple .mx-key { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 0 50px; font-size: 11px; line-height: 14px; color: var(--a-label-2); }
+html.hb-apple .mx-key i { display: inline-block; width: 14px; height: 0; margin-right: 6px; vertical-align: 3px; border-top: 2px solid var(--a-accent-text); }
+html.hb-apple .mx-key i.l3 { border-top: 1.5px dashed var(--a-label-2); }
+html.hb-apple .mx-key i.l2 { border-top: 1.5px solid var(--a-label-3); }
+/* new mission: the Claude Code start box (prompt on top, model and effort under it) */
+html.hb-apple .mx-start { margin: 18px 0 0; padding: 10px; border-radius: 12px; background: var(--a-group); }
+html.hb-apple .mx-start textarea.hb-field { display: block; width: 100%; height: 76px; padding: 7px 8px; resize: none; font: inherit; font-size: 13px; line-height: 18px; }
+html.hb-apple .mx-start-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; line-height: 14px; color: var(--a-label-2); }
+html.hb-apple .mx-start-bar .grow { flex: 1 1 auto; }
+html.hb-apple .mx-start-bar .btn { height: 28px; border-radius: var(--hb-bubble-r); }
+html.hb-apple .srow.mx-role { grid-template-columns: minmax(0, 1fr) 132px 104px; }
+html.hb-apple .srow.mx-role .hb-field { width: 100%; }
+html.hb-apple .mx-compose select.hb-field { flex: none; width: auto; }
+html.hb-apple .mx-q { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { html.hb-apple .mx-trk i, html.hb-apple .tl-done { transition: none; } }
+
+/* hidden really hides in the sidebar (the Desk's items set display) */
+html.hb-apple .hb-side [hidden] { display: none !important; }
+/* limits: name, value, switch (the Desk's mini switch); a switch off = no limit */
+html.hb-apple .srow.mx-lim { grid-template-columns: minmax(0, 1fr) 132px 36px; }
+html.hb-apple .srow.mx-lim .hb-field { width: 100%; }
+html.hb-apple .srow.mx-lim .mx-nolim { font-size: 13px; line-height: 16px; color: var(--a-label-2); text-align: right; }
+html.hb-apple .srow.mx-lim.off .hb-field, html.hb-apple .srow.mx-lim:not(.off) .mx-nolim { display: none; }
+html.hb-apple .srow.mx-lim.mx-auto .n { font-weight: 590; }
+/* press to talk: a mic in every box you type in */
+html.hb-apple { --mx-mic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 20'%3E%3Crect x='5' y='1' width='6' height='11' rx='3'/%3E%3Cpath d='M2.5 9a5.5 5.5 0 0 0 11 0M8 14.5V18.5M5 18.5h6' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); }
+html.hb-apple .btn.mx-mic { position: relative; flex: none; width: 28px; height: 28px; padding: 0; border-radius: var(--hb-bubble-r); }
+html.hb-apple .btn.mx-mic i { position: absolute; inset: 0; background: currentColor; -webkit-mask: var(--mx-mic) center / 11px 14px no-repeat; mask: var(--mx-mic) center / 11px 14px no-repeat; }
+html.hb-apple .btn.btn-outline.mx-mic.rec { background: var(--a-red-fill); border-color: transparent; color: #fff; box-shadow: none; }
+html.hb-apple .btn.mx-mic.rec::after { content: ""; position: absolute; inset: -3px; border-radius: 9px; box-shadow: 0 0 0 2px var(--a-red-fill); animation: mx-pulse 1.2s cubic-bezier(.16, 1, .3, 1) infinite; }
+@keyframes mx-pulse { from { opacity: .7; transform: scale(1); } to { opacity: 0; transform: scale(1.3); } }
+@media (prefers-reduced-motion: reduce) { html.hb-apple .btn.mx-mic.rec::after { animation: none; opacity: .5; } }
+/* the brief, the warning dialog and the sidebar groups */
+html.hb-apple .mx-brief { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: var(--a-group); }
+html.hb-apple .mx-brief .acct { cursor: default; }
+html.hb-apple .mx-warn { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.3); }
+html.hb-apple .mx-warn > div { max-width: 360px; padding: 18px; border-radius: 14px; background: var(--a-window); color: var(--a-label); }
+html.hb-apple .mx-warn p { margin: 0 0 14px; font-size: 13px; line-height: 18px; }
+html.hb-apple .mx-warn .row { display: flex; gap: 8px; justify-content: flex-end; }
+html.hb-apple .mx-err { margin: 8px 0; font-size: 13px; color: var(--a-label-2); }

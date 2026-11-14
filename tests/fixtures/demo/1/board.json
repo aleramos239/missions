@@ -1,0 +1,70 @@
+{
+ "goal": {
+  "kind": "eval",
+  "target": 0.5,
+  "rule": "apex_50k_legacy"
+ },
+ "round": 2,
+ "tries": {
+  "mission": 4,
+  "family_on_file": 0,
+  "total": 4,
+  "needed_t": 3.5
+ },
+ "versions": [
+  {
+   "version": "v01",
+   "name": "demo_v01",
+   "family": "demo",
+   "state": "done",
+   "box": "20 \u00b7 #14",
+   "goal_value": 0.22,
+   "lines_failed": [
+    "luck"
+   ],
+   "charges_standing": [],
+   "heard": null
+  },
+  {
+   "version": "v02",
+   "name": "demo_v02",
+   "family": "demo",
+   "state": "done",
+   "box": "32 \u00b7 #9",
+   "goal_value": 0.31,
+   "lines_failed": [
+    "luck"
+   ],
+   "charges_standing": [],
+   "heard": null
+  },
+  {
+   "version": "v03",
+   "name": "demo_v03",
+   "family": "demo",
+   "state": "done",
+   "box": "20 \u00b7 #22",
+   "goal_value": 0.27,
+   "lines_failed": [
+    "luck"
+   ],
+   "charges_standing": [],
+   "heard": null
+  },
+  {
+   "version": "v04",
+   "name": "demo_v04",
+   "family": "demo",
+   "state": "done",
+   "box": "40 \u00b7 #14",
+   "goal_value": 0.38,
+   "lines_failed": [
+    "luck"
+   ],
+   "charges_standing": [],
+   "heard": null
+  }
+ ],
+ "best": "v04",
+ "reads": 0
+}

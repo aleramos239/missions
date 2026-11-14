@@ -2,6 +2,7 @@
 test-month numbers; nothing written into a mission's chat/events here may carry one (the chat warning)."""
 import asyncio
 import json
+import os
 import re
 import threading
 from contextlib import asynccontextmanager, contextmanager
@@ -165,7 +166,7 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     @app.get("/")
     async def index():
         p = STATIC / "index.html"
-        return HTMLResponse(p.read_text() if p.exists() else "<title>Missions</title>")
+        return HTMLResponse(p.read_text() if p.exists() else "<title>Missions</title>")  # Guard adds no-cache
 
     if STATIC.is_dir():
         app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -215,6 +216,11 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
                                  headers={"cache-control": "no-cache"})
 
     # ---- the brief and the chat
+    @app.get("/api/missions/{mid}/brief")
+    async def brief_page(mid: int):
+        b = _mission(mid)["brief"]
+        return briefing.page(b, await asyncio.to_thread(hb.accounts)) if b else {"brief": None}
+
     @app.post("/api/missions/{mid}/brief/answer")
     async def brief_answer(mid: int, body: dict = Body(...)):
         _mission(mid)
@@ -385,4 +391,8 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     return Guard(app)
 
 
-app = make_app(runner=True)
+if os.environ.get("MISSIONS_DEMO"):
+    from . import demo
+    app = demo.make_app()
+else:
+    app = make_app(runner=True)

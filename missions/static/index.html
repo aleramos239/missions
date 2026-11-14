@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en" data-theme="light" class="hb-apple hb-c-tight hb-ready">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Missions</title>
+<script>try { var t = localStorage.getItem('hb_theme'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (_) {}</script>
+<!-- a COPY of Homebase's style files (tools/sync_css.py), in the Desk's order, then ours -->
+<link rel="stylesheet" href="/static/hb/shadcn.css">
+<link rel="stylesheet" href="/static/hb/chrome.css">
+<link rel="stylesheet" href="/static/hb/symbols.css">
+<link rel="stylesheet" href="/static/hb/system.css">
+<link rel="stylesheet" href="/static/hb/desk.css">
+<link rel="stylesheet" href="/static/missions.css">
+</head>
+<body>
+<div class="hb-tb-scrim"></div>
+<header class="hb-tb" id="hbTb" role="toolbar" aria-label="Window toolbar">
+  <div class="hb-tb-lead hb-drag"><button class="hb-tbtn hb-bare" type="button" id="hbSideBtn" title="Hide Sidebar" aria-label="Hide Sidebar" aria-expanded="true"><i class="sf sf-sidebar-left" aria-hidden="true"></i></button></div>
+  <div class="hb-tb-main hb-drag">
+    <div class="hb-tb-l"><div class="hb-title"><b id="tbTitle">Missions</b><span id="tbSub"></span></div></div>
+    <div class="hb-tb-c"></div>
+    <div class="hb-tb-r" id="tbRun" hidden>
+      <div class="hb-status hb-desk-status">
+        <div class="hb-rd-col">
+          <div class="hb-rd-top"><span class="bulb ok" id="tbBulb"></span><button class="hb-ready-word" type="button" id="tbWord">Working</button></div>
+          <span class="hb-ct-chip"><span class="hb-ct-long" id="tbChip"></span><span class="hb-ct-short" id="tbChipS"></span></span>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm hb-tbtn hb-text hb-arm" type="button" id="pauseBtn" title="Pause: the team finishes the run in hand, then waits">Pause</button>
+      <button class="btn btn-outline btn-sm hb-tbtn hb-text" type="button" id="stopBtn" title="Stop: end the mission and write the closest honest result">Stop</button>
+    </div>
+  </div>
+  <div class="hb-tb-insp hb-drag">
+    <span class="hb-machine" data-m="mac" id="labPill" role="button" tabindex="0" title="Connected to the Homebase Lab on this Mac"><span class="hb-m-long">Lab connected</span><span class="hb-m-short">Lab</span></span>
+    <div class="hb-platter"><button class="btn btn-outline btn-sm btn-icon hb-tbtn" type="button" id="gearBtn" title="Connections" aria-label="Connections"><i class="sf sf-gear" aria-hidden="true"></i></button></div>
+    <button class="hb-tbtn hb-solo" type="button" id="hbInspBtn" title="Hide Inspector" aria-label="Hide Inspector" aria-expanded="true"><i class="sf sf-sidebar-right" aria-hidden="true"></i></button>
+  </div>
+</header>
+
+<div class="app-shell">
+<div class="frame">
+<aside class="side hb-side" id="side" aria-label="Missions navigation">
+  <button class="nav mx-i-new" data-i data-v="new" aria-current="false"><span>New mission</span><span></span></button>
+  <button class="nav mx-i-link" data-i data-v="conn" aria-current="false"><span>Connections</span><span></span></button>
+  <div id="sideMissions"></div>
+</aside>
+
+<main class="app-main">
+<div class="scroll">
+<div class="view-wrap">
+
+  <section class="view" id="v-new" hidden>
+    <h1 class="day-title">New mission.<br><span>Say the idea and the goal. The lead asks you a few questions, writes the brief, and the team starts when you say go.</span></h1>
+    <form class="mx-start" id="startForm" autocomplete="off">
+      <textarea class="hb-field" id="goal" aria-label="The idea and the goal" placeholder="Build a 9:30 straddle on NQ that passes an Apex 50K eval 50 % of the time"></textarea>
+      <div class="mx-start-bar"><span class="grow">Runs on your Claude login on this Mac (the claude CLI). No API key.</span>
+        <button class="btn btn-outline btn-sm hb-tbtn mx-mic" type="button" data-for="goal" title="Speak instead of typing" aria-label="Speak instead of typing" aria-pressed="false"><i aria-hidden="true"></i></button>
+        <button class="btn btn-default btn-sm" type="submit">Start</button></div>
+    </form>
+    <div class="mx-err" id="newErr" hidden></div>
+    <div class="mx-sech"><h2 class="hb-sec-h">Team</h2>
+      <select class="hb-field" id="allEffort" aria-label="Effort for every role"></select></div>
+    <div class="slist" id="roles"></div>
+    <div class="mcap">Every role starts on High. Change one here, or all at once with the menu above.</div>
+    <h2 class="hb-sec-h">Limits</h2>
+    <div class="slist" id="limits"></div>
+    <div class="mcap" id="stopsWhen"></div>
+  </section>
+
+  <section class="view mx-chat" id="v-brief" hidden>
+    <h1 class="day-title">New mission.<br><span>The lead is writing the brief with you. Nothing runs yet.</span></h1>
+    <div class="mcap" id="briefCap"></div>
+    <h2 class="hb-sec-h">Chat</h2>
+    <div class="act-card"><div class="feed" id="briefFeed"></div></div>
+    <div id="briefCard" hidden></div>
+    <div class="mx-err" id="briefErr" hidden></div>
+    <form class="mx-compose" id="briefCompose" autocomplete="off">
+      <input class="hb-field" id="briefMsg" placeholder="Answer the lead…" aria-label="Answer the lead">
+      <button class="btn btn-outline btn-sm hb-tbtn mx-mic" type="button" data-for="briefMsg" title="Speak instead of typing" aria-label="Speak instead of typing" aria-pressed="false"><i aria-hidden="true"></i></button>
+      <button class="btn btn-default btn-sm" type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="view mx-chat" id="v-chat" hidden>
+    <h1 class="day-title" id="chatTitle"></h1>
+    <div class="mcap" id="chatCap"></div>
+    <h2 class="hb-sec-h">Steps</h2>
+    <div class="daytl"><div class="tl-head"><span><b id="stepRound"></b><span id="stepSince"></span></span><span class="mono" id="elapsed"></span></div>
+      <div class="tl"><div class="tl-track"><i class="tl-done" id="tlDone"></i><i class="tl-now" id="tlNow"></i></div>
+        <div class="tl-labels" id="tlLabels"></div></div></div>
+    <div class="mx-sech"><h2 class="hb-sec-h">Team chat</h2>
+      <select class="hb-field" id="who" aria-label="Show"><option value="">Everyone</option><option>Lead</option><option>Builder</option><option>Doubter</option><option>Defender</option><option>Judge</option><option>You</option></select></div>
+    <div class="act-card"><div class="feed" id="feed"></div></div>
+    <form class="mx-compose" id="compose" autocomplete="off">
+      <input class="hb-field" id="msg" placeholder="Text the lead…" aria-label="Text the team">
+      <button class="btn btn-outline btn-sm hb-tbtn mx-mic" type="button" data-for="msg" title="Speak instead of typing" aria-label="Speak instead of typing" aria-pressed="false"><i aria-hidden="true"></i></button>
+      <select class="hb-field" id="to" aria-label="Send to"><option value="lead">To the lead</option><option value="all">To everyone</option><option value="builder">To the Builder</option><option value="doubter">To the Doubter</option><option value="defender">To the Defender</option></select>
+      <button class="btn btn-default btn-sm" type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="view" id="v-other" hidden>
+    <h1 class="day-title" id="otherTitle"></h1>
+    <div class="mcap">This page is not built yet.</div>
+  </section>
+
+  <section class="view" id="v-conn" hidden>
+    <h1 class="day-title">Connections.<br><span>Missions is its own app on this Mac. It reaches Homebase only through the Lab connector.</span></h1>
+    <div class="sec"><h2>Claude and the Lab</h2><div class="agroup" id="connRows"></div></div>
+  </section>
+
+</div>
+</div>
+</main>
+</div>
+</div>
+
+<aside id="hbInsp" class="hb-insp" aria-label="Inspector">
+  <div class="hb-ipage" id="hbInspDesk">
+    <section class="hb-isec"><div class="hb-isec-h">Mission</div>
+      <div class="hb-box"><div class="figs" id="pMission"></div></div></section>
+    <section class="hb-isec"><div class="hb-isec-h">Now</div>
+      <div class="hb-box"><div class="figs" id="pNow"></div></div></section>
+    <section class="hb-isec"><div class="hb-isec-h">The brief</div>
+      <div class="hb-box"><div class="figs" id="pBrief"></div>
+      <div class="foot"><button class="foot-b" type="button" id="openBrief">Open the brief <u>›</u></button></div></div></section>
+  </div>
+</aside>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
