@@ -4,7 +4,10 @@ const ok = (v) => typeof v === "number" && Number.isFinite(v);
 const DASH = "—";
 // a value that rounds to zero carries no sign; a missing or non-finite value is a dash
 const sign = (v, d) => (Number(Math.abs(v).toFixed(d)) === 0 ? "" : v < 0 ? MINUS : "+");
-const num = (v, d = 0) => Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const nm = (v, d = 0) => Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const num = nm;
+// a plain unsigned number, "—" when missing
+export const plain = (v, d = 0) => (ok(v) ? nm(v, d) : DASH);
 
 export const money = (v) => (ok(v) ? `${sign(v, 0)}$${num(v)}` : DASH);
 export const pct = (v) => (ok(v) ? `${Math.round(v * 100) || 0} %` : DASH);

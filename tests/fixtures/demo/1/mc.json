@@ -9,6 +9,6 @@
   "one_in_20": 12
  },
  "net_one_in_20": 21300,
- "below_zero_pct": 0.4,
- "below_zero_said": "0.4 % of paths end below $0"
+ "below_zero_pct": null,
+ "below_zero_said": "under 5 % of paths end below $0"
 }

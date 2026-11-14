@@ -1,4 +1,4 @@
-import { esc, money, pct, pts, luck as luckWords } from "./fmt.js";
+import { esc, money, pct, pts, plain, luck as luckWords } from "./fmt.js";
 import { api } from "./net.js";
 import { title, sec, group, acct, cls, mount, bestOf } from "./ui.js";
 
@@ -41,8 +41,8 @@ const page = {
         acct({ nm: v.version, mark: "lock", val: "Frozen · never run or tuned again" })]) : `<div class="mcap">Not read yet.</div>`;
       const yours = y && y.trades != null ? group([
         acct({ nm: "Net, test months", val: money(y.net), c: cls(y.net) }),
-        acct({ nm: "Trades", val: `${y.trades}${months ? ` · ${months.length} months` : ""}` }),
-        acct({ nm: "Hit the full target", val: y.breakeven != null ? `${pct(y.win_rate)} against ${pct(y.breakeven)} needed` : pct(y.win_rate) }),
+        acct({ nm: "Trades", val: `${plain(y.trades)}${months ? ` · ${months.length} months` : ""}` }),
+        acct({ nm: "Hit the full target", val: ins && ins.breakeven != null ? `${pct(y.win_rate)} against ${pct(ins.breakeven)} needed` : pct(y.win_rate) }),
         acct({ nm: "Points over", val: `${pts(y.points_over)}${ins ? ` · in-sample ${pts(ins.points_over)}` : ""}` }),
         ...(months ? [acct({ nm: "Months that made money", val: `${months.filter((b) => b.net > 0).length} of ${months.length}` })] : [])]) : `<div class="mcap">Nothing to show: the test months were not read.</div>`;
       const charges = (d.gate && d.gate.charges || []).map((c) => acct({ nm: c.charge, sub: [`Judge: ${c.why}`, ...words(events, v.version, c.charge)], val: c.held ? "Stands" : "Broke", mark: c.held ? "ok" : "no" }));

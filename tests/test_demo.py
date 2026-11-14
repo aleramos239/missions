@@ -53,7 +53,9 @@ def test_demo_result_pages_have_data():
     assert call("GET", "/api/missions/1/table?name=demo_v03").json()["cells"] == 20
     b = call("GET", f"/api/missions/1/box?name=demo_v04&box={tab['pick']}").json()
     assert b["row"]["box"] == tab["pick"] and b["mc"]["worst_drawdown"]
-    assert len(call("GET", f"/api/missions/1/odds?name=demo_v04&box={tab['pick']}").json()) >= 4
+    od = call("GET", f"/api/missions/1/odds?name=demo_v04&box={tab['pick']}").json()
+    assert len(od["odds"]) >= 4 and od["skipped"][0]["why"]
+    assert b["mc"]["below_zero_pct"] is None and "under 5 %" in b["mc"]["below_zero_said"]
     lk = call("GET", "/api/missions/1/luck?name=demo_v05").json()
     assert lk["heard"]["line"] == "under the bar" and lk["yours"]["net"] < 0 and len(lk["gate"]["charges"]) == 5
     assert call("GET", "/api/missions/1/running").json()["slots"]["cap"] == 12

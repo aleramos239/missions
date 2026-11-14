@@ -1,133 +1,141 @@
-[
- {
-  "rule": "apex-50k-legacy@2026-11-14",
-  "account": "Apex 50K Legacy eval",
-  "risk": 1000,
-  "on": "is",
-  "trades": 897,
-  "unsized": 0,
-  "pass_p": 0.41,
-  "pass_ci": [
-   0.38,
-   0.43999999999999995
-  ],
-  "bust_p": 0.22,
-  "days_to_pass": 6,
-  "worst_case_pass_p": 0.33,
-  "size": null,
-  "caveat": null,
-  "confirmed": true,
-  "bans": [
-   "No bots or automated trading",
-   "No trading through news in the first minute"
-  ]
- },
- {
-  "rule": "topstep-50k@2026-11-14",
-  "account": "Topstep 50K Combine",
-  "risk": 1000,
-  "on": "is",
-  "trades": 897,
-  "unsized": 0,
-  "pass_p": 0.38,
-  "pass_ci": [
-   0.35,
-   0.41000000000000003
-  ],
-  "bust_p": 0.25,
-  "days_to_pass": 7,
-  "worst_case_pass_p": null,
-  "size": null,
-  "caveat": null,
-  "confirmed": true,
-  "bans": [
-   "No VPS orders"
-  ]
- },
- {
-  "rule": "mffu-50k-rapid@2026-11-14",
-  "account": "MFFU 50K Rapid eval",
-  "risk": 1000,
-  "on": "is",
-  "trades": 897,
-  "unsized": 0,
-  "pass_p": 0.35,
-  "pass_ci": [
-   0.31999999999999995,
-   0.38
-  ],
-  "bust_p": 0.3,
-  "days_to_pass": 7,
-  "worst_case_pass_p": null,
-  "size": null,
-  "caveat": null,
-  "confirmed": false,
-  "bans": [
-   "No news straddles"
-  ]
- },
- {
-  "rule": "lucid-100k-maxx@2026-11-14",
-  "account": "Lucid 100K Maxx eval",
-  "risk": 1000,
-  "on": "is",
-  "trades": 897,
-  "unsized": 0,
-  "pass_p": 0.29,
-  "pass_ci": [
-   0.26,
-   0.31999999999999995
-  ],
-  "bust_p": 0.38,
-  "days_to_pass": 8,
-  "worst_case_pass_p": null,
-  "size": 10,
-  "caveat": "Sized at the 10-micro cap: a bigger account could not use more",
-  "confirmed": true,
-  "bans": []
- },
- {
-  "rule": "apex-100k-legacy@2026-11-14",
-  "account": "Apex 100K Legacy eval",
-  "risk": 1000,
-  "on": "is",
-  "trades": 897,
-  "unsized": 0,
-  "pass_p": 0.27,
-  "pass_ci": [
-   0.24000000000000002,
-   0.30000000000000004
-  ],
-  "bust_p": 0.4,
-  "days_to_pass": 9,
-  "worst_case_pass_p": 0.2,
-  "size": null,
-  "caveat": null,
-  "confirmed": true,
-  "bans": [
-   "No bots or automated trading"
-  ]
- },
- {
-  "rule": "topstep-100k@2026-11-14",
-  "account": "Topstep 100K Combine",
-  "risk": 1000,
-  "on": "is",
-  "trades": 897,
-  "unsized": 0,
-  "pass_p": 0.24,
-  "pass_ci": [
-   0.21,
-   0.27
-  ],
-  "bust_p": 0.41,
-  "days_to_pass": 9,
-  "worst_case_pass_p": null,
-  "size": null,
-  "caveat": null,
-  "confirmed": true,
-  "bans": [
-   "No VPS orders"
-  ]
- }
-]
+{
+ "odds": [
+  {
+   "rule": "apex-50k-legacy@2026-11-14",
+   "account": "Apex 50K Legacy eval",
+   "risk": 1000,
+   "on": "is",
+   "trades": 897,
+   "unsized": 0,
+   "pass_p": 0.41,
+   "pass_ci": [
+    0.38,
+    0.43999999999999995
+   ],
+   "bust_p": 0.22,
+   "days_to_pass": 6,
+   "worst_case_pass_p": 0.33,
+   "size": null,
+   "caveat": null,
+   "confirmed": true,
+   "bans": [
+    "No bots or automated trading",
+    "No trading through news in the first minute"
+   ]
+  },
+  {
+   "rule": "topstep-50k@2026-11-14",
+   "account": "Topstep 50K Combine",
+   "risk": 1000,
+   "on": "is",
+   "trades": 897,
+   "unsized": 0,
+   "pass_p": 0.38,
+   "pass_ci": [
+    0.35,
+    0.41000000000000003
+   ],
+   "bust_p": 0.25,
+   "days_to_pass": 7,
+   "worst_case_pass_p": null,
+   "size": null,
+   "caveat": null,
+   "confirmed": true,
+   "bans": [
+    "No VPS orders"
+   ]
+  },
+  {
+   "rule": "mffu-50k-rapid@2026-11-14",
+   "account": "MFFU 50K Rapid eval",
+   "risk": 1000,
+   "on": "is",
+   "trades": 897,
+   "unsized": 0,
+   "pass_p": 0.35,
+   "pass_ci": [
+    0.31999999999999995,
+    0.38
+   ],
+   "bust_p": 0.3,
+   "days_to_pass": 7,
+   "worst_case_pass_p": null,
+   "size": null,
+   "caveat": null,
+   "confirmed": false,
+   "bans": [
+    "No news straddles"
+   ]
+  },
+  {
+   "rule": "lucid-100k-maxx@2026-11-14",
+   "account": "Lucid 100K Maxx eval",
+   "risk": 1000,
+   "on": "is",
+   "trades": 897,
+   "unsized": 0,
+   "pass_p": 0.29,
+   "pass_ci": [
+    0.26,
+    0.31999999999999995
+   ],
+   "bust_p": 0.38,
+   "days_to_pass": 8,
+   "worst_case_pass_p": null,
+   "size": 10,
+   "caveat": "Sized at the 10-micro cap: a bigger account could not use more",
+   "confirmed": true,
+   "bans": []
+  },
+  {
+   "rule": "apex-100k-legacy@2026-11-14",
+   "account": "Apex 100K Legacy eval",
+   "risk": 1000,
+   "on": "is",
+   "trades": 897,
+   "unsized": 0,
+   "pass_p": 0.27,
+   "pass_ci": [
+    0.24000000000000002,
+    0.30000000000000004
+   ],
+   "bust_p": 0.4,
+   "days_to_pass": 9,
+   "worst_case_pass_p": 0.2,
+   "size": null,
+   "caveat": null,
+   "confirmed": true,
+   "bans": [
+    "No bots or automated trading"
+   ]
+  },
+  {
+   "rule": "topstep-100k@2026-11-14",
+   "account": "Topstep 100K Combine",
+   "risk": 1000,
+   "on": "is",
+   "trades": 897,
+   "unsized": 0,
+   "pass_p": 0.24,
+   "pass_ci": [
+    0.21,
+    0.27
+   ],
+   "bust_p": 0.41,
+   "days_to_pass": 9,
+   "worst_case_pass_p": null,
+   "size": null,
+   "caveat": null,
+   "confirmed": true,
+   "bans": [
+    "No VPS orders"
+   ]
+  }
+ ],
+ "skipped": [
+  {
+   "rule": "lucid-flex-50k@2026-11-14",
+   "why": "closed to new accounts"
+  }
+ ]
+}

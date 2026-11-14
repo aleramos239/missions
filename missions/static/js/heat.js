@@ -11,7 +11,7 @@ const st = { id: null, name: null, value: null, k: "net", box: null }; // what t
 const cash = (v) => (typeof v === "number" && Number.isFinite(v) ? `${v < 0 ? MINUS : v > 0 ? "+" : ""}<span class="mx-cur">$</span>${Math.abs(Math.round(v)).toLocaleString("en-US")}` : "—");
 const show = {
   net: (r) => cash(r.net), over: (r) => esc(pts(r.points_over)), hit: (r) => esc(pct(r.win_rate)),
-  pf: (r) => (r.pf == null ? "—" : r.pf.toFixed(2)), sh: (r) => esc(dec(r.sharpe, 2)),
+  pf: (r) => (plain(r.pf, 2)), sh: (r) => esc(dec(r.sharpe, 2)),
 };
 const at = (r) => [Math.floor((r.cell - 1) / 5), (r.cell - 1) % 5];
 

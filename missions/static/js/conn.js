@@ -16,7 +16,7 @@ export default {
       const lab = group([
         row({ ok: !!h.chart_service, nm: "Homebase chart service", sub: "the Lab the team tests in · this Mac", val: h.chart_service ? "Up" : "Down" }),
         row({ ok: !!h.door, nm: "The Judge's door", sub: "fixed code that reads the Lab for the team", val: h.door ? "Up" : "Down" }),
-        acct({ nm: "Desk, accounts, orders", sub: "the connector has no order tools; this app never touches an account", val: "Never", mark: "no" })]);
+        acct({ nm: "Desk, accounts, orders", sub: "the connector has no order tools; this app never touches an account", val: "Never" })]);
       const ntfy = group([
         `<div class="acct tall"><span class="grow"><span class="nm">ntfy topic</span><span class="sub">sends 'Mission 7: goal reached' to ntfy.sh; no numbers or names</span></span><input class="hb-field" id="cNtfy" value="${esc(s.ntfy_topic || "")}" aria-label="ntfy topic" placeholder="a topic only you know"><button class="btn btn-outline btn-sm" id="cNtfySave" type="button">Save</button></div>`]);
       return sec("Claude", claude) + sec("The Lab", lab) + sec("Alerts", ntfy, "") + `<div class="mcap">The trading server is never used. Missions runs nothing there.</div>`;

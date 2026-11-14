@@ -49,3 +49,9 @@ test("dec keeps its sign, hm reads hours and minutes", () => {
   assert.equal(f.hm(4200), "1 h 10 min");
   assert.equal(f.hm(600), "10 min");
 });
+
+test("plain numbers", () => {
+  assert.equal(f.plain(1234.5, 1), "1,234.5");
+  assert.equal(f.plain(null), "—");
+  assert.equal(f.plain(3.4, 1), "3.4");
+});

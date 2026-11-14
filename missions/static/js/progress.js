@@ -5,16 +5,17 @@ import { title, sec, group, acct, mount } from "./ui.js";
 // one point per version in order: its picked box's in-sample goal value, the best so far (a step), the goal (dashed)
 function chart(vs, g) {
   const val = (v) => (g.kind === "eval" ? v * 100 : v);
-  const top = Math.max(val(g.target), ...vs.map((v) => val(v.goal_value ?? 0)), 1) * 1.2, W = 110, H = 60;
-  const X = (i) => 5 + (vs.length < 2 ? 50 : i * (W - 10) / (vs.length - 1)), Y = (v) => H - (val(v) / top) * H;
+  const vals = vs.map((v) => val(v.goal_value ?? 0)), top = Math.max(val(g.target), ...vals, 1) * 1.2, W = 110, H = 60;
+  const low = Math.min(0, ...vals) * 1.2, span = top - low; // the axis goes below 0 when a try lost money
+  const X = (i) => 5 + (vs.length < 2 ? 50 : i * (W - 10) / (vs.length - 1)), Y = (v) => H - ((val(v) - low) / span) * H;
   let best = -Infinity, step = "";
   vs.forEach((v, i) => { if (v.goal_value != null) { best = Math.max(best, v.goal_value); step += `${step ? " " : ""}${X(i)},${Y(best)}`; } });
-  const yl = [[top, goalVal(g.kind, g.kind === "eval" ? top / 100 : top)], [val(g.target), goalVal(g.kind, g.target)], [0, goalVal(g.kind, 0)]];
-  const svg = `<line class="eq-grid" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/><line class="eq-zero" x1="0" y1="${H}" x2="${W}" y2="${H}"/>`
+  const yl = [[top, goalVal(g.kind, g.kind === "eval" ? top / 100 : top)], [val(g.target), goalVal(g.kind, g.target)], [0, goalVal(g.kind, 0)]].concat(low < 0 ? [[low, goalVal(g.kind, g.kind === "eval" ? low / 100 : low)]] : []);
+  const svg = `<line class="eq-grid" x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}"/><line class="eq-zero" x1="0" y1="${Y(0)}" x2="${W}" y2="${Y(0)}"/>`
     + `<line class="eq-line3" x1="0" y1="${Y(g.target)}" x2="${W}" y2="${Y(g.target)}"/>`
     + vs.map((v, i) => (v.goal_value == null ? "" : `<path class="mx-try" d="M${X(i)} ${Y(v.goal_value)}h0"/>`)).join("")
     + (step ? `<polyline class="eq-line" points="${step}"/>` : "");
-  const ys = yl.map(([v, t]) => `<span class="eq-y" style="top:${(100 - (v / top) * 100).toFixed(1)}%">${esc(t)}</span>`).join("");
+  const ys = yl.map(([v, t]) => `<span class="eq-y" style="top:${(100 - ((v - low) / span) * 100).toFixed(1)}%">${esc(t)}</span>`).join("");
   const xs = vs.length ? [0, Math.floor((vs.length - 1) / 2), vs.length - 1].filter((v, i, a) => a.indexOf(v) === i).map((i) => `<span>${esc(vs[i].version)}</span>`).join("") : "";
   return `<div class="eq"><div class="lb"><span>${esc(g.kind === "eval" ? "Pass %" : "Goal value")} of each try's picked box</span></div>`
     + `<div class="eq-plot">${ys}<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Goal value by version">${svg}</svg></div>`
