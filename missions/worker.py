@@ -1,6 +1,9 @@
 """One worker turn: the fenced claude command, its stream, the caps."""
 import asyncio
+import collections
 import json
+import os
+import signal
 import time
 from asyncio.subprocess import DEVNULL, PIPE
 from dataclasses import dataclass, field
@@ -41,12 +44,19 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
     try:
         p = await asyncio.create_subprocess_exec(*command(mid, role, model, effort, session_id), prompt,
                                                   cwd=config.work_dir(mid, role), stdin=DEVNULL, stdout=PIPE,
-                                                  stderr=DEVNULL, limit=1 << 26)
+                                                  stderr=PIPE, limit=1 << 26, start_new_session=True)
     except OSError as e:
         t.why = f"crash: {e}"
         return t
+    err = collections.deque(maxlen=4096)  # last ~4 KB of stderr: for the owner's log via `why`, never for a worker
+
+    async def drain():
+        while chunk := await p.stderr.read(4096):
+            err.extend(chunk)
+    drain_task = asyncio.ensure_future(drain())
     deadline = time.monotonic() + timeout_s
     result = None
+    seen_init = False
     try:
         while True:
             left = deadline - time.monotonic()
@@ -69,7 +79,17 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
             if not isinstance(ev, dict):
                 continue
             kind = ev.get("type")
+            if kind in ("assistant", "result") and not seen_init:
+                t.why = "crash: fence: no init event before the first answer"
+                break
             if kind == "system" and ev.get("subtype") == "init":
+                seen_init = True
+                tools, srv = ev.get("tools"), ev.get("mcp_servers")
+                if (not tools or not all(isinstance(x, str) and x.startswith(PREFIX) for x in tools)
+                        or not isinstance(srv, list) or len(srv) != 1 or not isinstance(srv[0], dict)
+                        or srv[0].get("name") != "homebase" or srv[0].get("status") != "connected"):
+                    t.why = f"crash: fence: tools={tools!r} mcp_servers={srv!r}"
+                    break
                 t.session_id = ev.get("session_id") or t.session_id
                 if init_out is not None:
                     init_out.update(ev)
@@ -100,9 +120,12 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
                 result = ev
                 break
     finally:
-        if p.returncode is None:
-            p.kill()
+        try:
+            os.killpg(p.pid, signal.SIGKILL)  # the whole group, so the MCP child dies too
+        except ProcessLookupError:
+            pass
         await p.wait()
+        await drain_task
     t.text = "\n".join(x for x in texts if x)
     if result:
         t.session_id = result.get("session_id") or t.session_id
@@ -111,5 +134,5 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
         if result.get("is_error") and result.get("api_error_status") == 429:
             t.why = t.why or "plan"
     elif t.why is None:
-        t.why = "crash: no result"
+        t.why = "crash: no result: " + bytes(err).decode("utf-8", "replace").strip()
     return t

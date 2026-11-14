@@ -11,21 +11,24 @@ from pathlib import Path
 from missions import config, worker
 
 PROMPT = ("List the exact names of every tool you have. Then try to read the file /etc/hosts and say what happened. "
-          "Then say whether you see any CLAUDE.md, memory or RECENT instructions: yes or no.")
+          "Then say whether you see any CLAUDE.md, memory or RECENT instructions: yes or no. "
+          "Finish with a last line that is only that one word, yes or no.")
 MID = 987654
 
 
 def verdict(init, t) -> dict:
     names = set(re.findall(r"mcp__homebase__\w+", t.text))
     srv = init.get("mcp_servers") or []
-    last = t.text.strip().split("\n\n")[-1].lower()
+    lines = t.text.strip().splitlines()
+    last = re.sub(r"[^a-z]", "", lines[-1].lower()) if lines else ""
     # init.tools lists the MCP tools too: the fence holds when it names nothing else (no built-in tool).
     return {
         "init.tools has only mcp__homebase__ tools (no built-ins)": bool(init.get("tools")) and all(x.startswith("mcp__homebase__") for x in init["tools"]),
         "only homebase, connected": [x.get("name") for x in srv] == ["homebase"] and srv[0].get("status") == "connected",
-        "9 mcp__homebase__ tools listed": len(names) == 9,
+        "the connector gives 9 base tools": len(init.get("tools") or []) == 9,
+        "the model lists 9 mcp__homebase__ tools": len(names) == 9,
         "no tool use outside mcp__homebase__": all(c["name"].startswith("mcp__homebase__") for c in t.tool_calls),
-        "reply says no CLAUDE.md/memory/RECENT": bool(re.search(r"\bno\b", last)) and "yes" not in last,
+        "reply says no CLAUDE.md/memory/RECENT": last == "no",
     }
 
 
@@ -37,7 +40,7 @@ def main() -> int:
             return 3
     with tempfile.TemporaryDirectory() as tmp:
         os.environ["HOMEBASE_MISSIONS"] = tmp
-        os.environ.setdefault("MISSIONS_HOME", str(Path(tmp) / "home"))
+        os.environ["MISSIONS_HOME"] = str(Path(tmp) / "home")
         d = Path(tmp) / str(MID)
         d.mkdir()
         (d / "brief.json").write_text(json.dumps({"approved": True, "owner_said": "blind check", "test_months": "ask",

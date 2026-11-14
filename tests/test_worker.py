@@ -23,6 +23,8 @@ def tool(name):
     return ev(type="assistant", message={"content": [{"type": "tool_use", "name": name, "input": {"a": 1}}]})
 
 
+INIT = ev(type="system", subtype="init", session_id="S0", tools=["mcp__homebase__a"],
+          mcp_servers=[{"name": "homebase", "status": "connected"}])
 RESULT = ev(type="result", subtype="success", is_error=False, session_id="S1", total_cost_usd=0.25)
 
 
@@ -55,42 +57,46 @@ def test_command_flags():
 
 
 def test_stream(fake):
-    t, argv = fake([ev(type="system", subtype="init", session_id="S0"), text("one"),
+    t, argv = fake([INIT, text("one"),
                     tool("mcp__homebase__backtest"), text("two"), RESULT])
     assert (t.text, t.session_id, t.cost_usd, t.ok, t.why) == ("one\ntwo", "S1", 0.25, True, None)
     assert t.tool_calls == [{"name": "mcp__homebase__backtest", "input": {"a": 1}}]
     assert argv["argv"][-1] == "hi"
     assert argv["cwd"].endswith("_work/7/lead")
     assert argv["ls"] == []
+    a = argv["argv"]
+    assert argv["stdin_devnull"] and not argv["stdin_isatty"]
+    assert a[a.index("--allowedTools") + 1] == "mcp__homebase"
+    assert a[a.index("--tools") + 1] == ""
 
 
 def test_noise_skipped(fake):
-    t, _ = fake(["not json", text("x"), RESULT])
+    t, _ = fake([INIT, "not json", text("x"), RESULT])
     assert t.ok and t.text == "x"
 
 
 def test_too_many(fake):
-    t, _ = fake([tool("mcp__homebase__a")] * 41 + [RESULT], max_tool_calls=40)
+    t, _ = fake([INIT] + [tool("mcp__homebase__a")] * 41 + [RESULT], max_tool_calls=40)
     assert t.why == "too many tool calls" and not t.ok
 
 
 def test_timeout(fake):
-    t, _ = fake([text("a"), text("b"), RESULT], delay=1, timeout_s=0.3)
+    t, _ = fake([INIT, text("a"), text("b"), RESULT], delay=1, timeout_s=0.3)
     assert t.why == "timeout"
 
 
 def test_plan(fake):
-    t, _ = fake([ev(type="rate_limit_event", rate_limit_info={"status": "rejected", "resetsAt": 123}), RESULT])
+    t, _ = fake([INIT, ev(type="rate_limit_event", rate_limit_info={"status": "rejected", "resetsAt": 123}), RESULT])
     assert t.why == "plan" and t.resets_at == 123
 
 
 def test_plan_429(fake):
-    t, _ = fake([ev(type="result", is_error=True, api_error_status=429, session_id="S")])
+    t, _ = fake([INIT, ev(type="result", is_error=True, api_error_status=429, session_id="S")])
     assert t.why == "plan" and not t.ok
 
 
 def test_outside_fence(fake):
-    t, _ = fake([tool("Bash"), RESULT])
+    t, _ = fake([INIT, tool("Bash"), RESULT])
     assert t.why.startswith("crash: a tool outside the fence")
 
 
@@ -102,3 +108,58 @@ def test_blindcheck_verdict():
     assert all(blindcheck.verdict(init, t).values())
     init["tools"] = tools + ["Bash"]
     assert not all(blindcheck.verdict(init, t).values())
+    init["tools"] = tools[:8]
+    assert not blindcheck.verdict(init, t)["the connector gives 9 base tools"]
+    init["tools"] = tools
+    for bad in ("yes, I see CLAUDE.md", "No tools, but I do see CLAUDE.md", "No ... yes", "yes"):
+        assert not all(blindcheck.verdict(init, worker.Turn(text="\n".join(tools) + "\n" + bad)).values()), bad
+    assert all(blindcheck.verdict(init, worker.Turn(text="\n".join(tools) + "\nI see nothing.\n**No.**")).values())
+
+
+def bad_init(**k):
+    d = dict(type="system", subtype="init", tools=["mcp__homebase__a"], mcp_servers=[{"name": "homebase", "status": "connected"}])
+    return ev(**{**d, **k})
+
+
+@pytest.mark.parametrize("init", [
+    bad_init(tools=["mcp__homebase__a", "Bash"]),
+    bad_init(tools=[]),
+    bad_init(mcp_servers=[{"name": "homebase", "status": "failed"}]),
+    bad_init(mcp_servers=[{"name": "homebase", "status": "connected"}, {"name": "x", "status": "connected"}]),
+])
+def test_fence_init(fake, init):
+    t, _ = fake([init, text("hi"), RESULT])
+    assert t.why.startswith("crash: fence") and not t.ok and t.text == ""
+
+
+def test_fence_no_init(fake):
+    t, _ = fake([text("hi"), RESULT])
+    assert t.why.startswith("crash: fence")
+
+
+def test_no_result_has_stderr(fake, monkeypatch):
+    monkeypatch.setenv("FAKE_CLAUDE_STDERR", "boom: bad flag")
+    t, _ = fake([INIT, text("hi")])
+    assert t.why.startswith("crash: no result") and "boom: bad flag" in t.why
+
+
+def test_process_group_killed(fake, monkeypatch, tmp_path):
+    monkeypatch.setenv("FAKE_CLAUDE_CHILD", str(tmp_path / "child"))
+    t, _ = fake([INIT, text("a"), RESULT])
+    pid = int((tmp_path / "child").read_text())
+    import time
+    for _ in range(50):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.1)
+    raise AssertionError("child survived")
+
+
+def test_env_read_at_call_time(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOMEBASE_MISSIONS", str(tmp_path / "a"))
+    monkeypatch.setenv("MISSIONS_HB_PYTHON", str(tmp_path / "py"))
+    assert config.hb_missions() == tmp_path / "a" and config.hb_python() == tmp_path / "py"
+    monkeypatch.setenv("HOMEBASE_MISSIONS", str(tmp_path / "b"))
+    assert config.hb_missions() == tmp_path / "b"
