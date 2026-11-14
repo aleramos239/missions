@@ -26,11 +26,13 @@ def run(c):
 class Clock:
     def __init__(self):
         self.t = 1000.0
+        self.slept = []
 
     def __call__(self):
         return self.t
 
     async def sleep(self, s):
+        self.slept.append(s)
         self.t += s
 
 
@@ -100,10 +102,12 @@ def set_fake(fake, mid, *, clear=True, value=4.0, n=None):
     fake.reads[n] = {"held": False, "line": "worse fills", "close": "far"}
 
 
-@pytest.fixture
-def kit(monkeypatch, tmp_path):
+def make_kit(monkeypatch, tmp_path, pre=0):
+    """A mission with a brief, running; `pre` earlier missions make its id higher than 1."""
     monkeypatch.setenv("MISSIONS_VAULT", str(tmp_path / "vault"))
     engine._active.clear()
+    for _ in range(pre):
+        store.new_mission("earlier", TEAM, {}, "team")
     m = store.new_mission("reach 3 points", TEAM, {}, "team")
     m["brief"], m["status"] = BRIEF, "running"
     store.save(m)
@@ -112,8 +116,19 @@ def kit(monkeypatch, tmp_path):
     turns = Turns(fake, m["id"])
 
     def mk(mid=None, **kw):
+        kw.setdefault("backoff", (1, 4))
         return engine.Engine(mid or m["id"], hb=fake, run_turn=turns, clock=clock, sleep=clock.sleep, **kw)
     return type("Kit", (), {"mid": m["id"], "fake": fake, "turns": turns, "clock": clock, "eng": mk, "mk": mk})
+
+
+@pytest.fixture
+def kit(monkeypatch, tmp_path):
+    return make_kit(monkeypatch, tmp_path)
+
+
+@pytest.fixture
+def kit3(monkeypatch, tmp_path):
+    return make_kit(monkeypatch, tmp_path, pre=2)  # mission id 3
 
 
 def steps(mid):
@@ -387,3 +402,166 @@ def test_one_mission_runs_at_a_time(kit):
     run(engine.runner(until_idle=True, hb=kit.fake, run_turn=t, clock=kit.clock, sleep=kit.clock.sleep))
     assert store.load(kit.mid)["status"] == "achieved" and store.load(m2["id"])["status"] == "achieved"
     assert all(s == "queued" for mid, s in seen if mid == kit.mid)
+
+
+# ---- fix round 1
+
+def stopper(eng, kit, n=1):
+    orig = eng._round_start
+
+    def rs():
+        if eng.m["round"] >= n:
+            engine.stop(kit.mid)
+        orig()
+    eng._round_start = rs
+    return eng
+
+
+class LimitSys(engine._NoSystem):
+    def limit_hit(self, m, tries_mission):
+        return "tries"
+
+
+def test_a_lead_reply_with_stop_does_not_end_the_mission(kit):
+    kit.turns.over[("lead", "read")] = {"why": "stop now", "next": "stop"}
+    eng = kit.eng(system=LimitSys())
+    calls = {"n": 0}
+    ok = engine._NoSystem.limit_hit
+
+    def limit(m, t):  # round 1 runs whole, then a limit ends it: the Lead's "stop" did not
+        calls["n"] += 1
+        return "tries" if calls["n"] > 1 else None
+    eng.system.limit_hit = limit
+    assert run(eng.run()) == "limit"
+    m = store.load(kit.mid)
+    assert m["round"] == 1 and m["reads"] == 1 and m["pending"]["next"] == "stop now"
+
+
+def test_until_goal_skips_the_limits_in_the_engine(kit):
+    m = store.load(kit.mid)
+    m["limits"] = {"until_goal": True}
+    store.save(m)
+    kit.fake.reach["fvg"] = {"family": "fvg", "reachable": False}
+    assert run(kit.eng(system=LimitSys()).run()) == "out_of_reach"
+
+
+def test_two_failed_lead_turns_are_not_empty_rounds(kit):
+    bad = worker.Turn(why="timeout")
+    kit.turns.over[("lead", "ideas")] = [bad] * 6  # three rounds of a failed turn and its retry
+    eng = stopper(kit.eng(), kit)
+    assert run(eng.run()) == "stopped"
+    m = store.load(kit.mid)
+    assert m["empty_rounds"] == 0 and m["round"] == 1 and len(m["versions"]) == 1
+    assert any("could not be made or checked" in e["text"] for e in store.events(kit.mid))
+
+
+def test_a_refused_reach_retries_the_round_without_an_empty_round(kit):
+    kit.fake.reach["fvg"] = kit.fake.Refused("no such family 7")
+    n = {"i": 0}
+
+    def lead(t):
+        n["i"] += 1
+        if n["i"] == 2:
+            kit.fake.reach["fvg"] = {"family": "fvg", "reachable": True}
+    kit.turns.over[("lead", "ideas")] = lead
+    assert run(stopper(kit.eng(), kit).run()) == "stopped"
+    m = store.load(kit.mid)
+    assert m["empty_rounds"] == 0 and len(m["versions"]) == 1 and n["i"] == 2
+
+
+def down_for(fake, name, n):
+    orig, left = getattr(fake, name), {"n": n}
+
+    def f(*a, **k):
+        if left["n"] > 0:
+            left["n"] -= 1
+            raise fake.Down("no door")
+        return orig(*a, **k)
+    setattr(fake, name, f)
+    return left
+
+
+@pytest.mark.parametrize("name", ["reach", "made", "job", "table", "gate", "read_result", "start_read", "tries"])
+def test_a_homebase_outage_waits_and_the_same_step_goes_on(kit, name):
+    if name == "tries":
+        kit.fake.tries_["fvg"] = {"mission": 1, "family_on_file": 0, "total": 1, "needed_t": 2.0}
+    left = down_for(kit.fake, name, 3)
+    assert run(stopper(kit.eng(), kit).run()) == "stopped"
+    assert left["n"] == 0
+    m = store.load(kit.mid)
+    assert m["versions"][0]["state"] == "frozen" and m["reads"] == 1
+    st = [e["text"] for e in store.events(kit.mid) if e["type"] == "status"]
+    assert "waiting_homebase" in st and st.index("waiting_homebase") < len(st) - 1
+    assert kit.clock.slept.count(1) + kit.clock.slept.count(2) + kit.clock.slept.count(4) >= 3  # capped backoff 1, 2, 4
+
+
+def test_the_outage_backoff_is_capped(kit):
+    down_for(kit.fake, "reach", 6)
+    run(stopper(kit.eng(), kit).run())
+    waits = [s for s in kit.clock.slept if s in (1, 2, 4)][:6]
+    assert waits == [1, 2, 4, 4, 4, 4]
+
+
+def test_pause_and_stop_are_honoured_while_homebase_is_down(kit):
+    down_for(kit.fake, "reach", 100)
+    orig = kit.clock.sleep
+
+    async def sleep(s):
+        engine.pause(kit.mid)
+        await orig(s)
+    eng = kit.eng()
+    eng.sleep = sleep
+    assert run(eng.run()) == "paused"
+    assert store.load(kit.mid)["step"] == "ideas"
+    engine.resume(kit.mid)
+    engine._active.clear()
+    left = {"n": 0}
+    kit.fake.reach = lambda mid, fam: (_ for _ in ()).throw(kit.fake.Down("x"))
+    eng2 = kit.eng()
+
+    async def sleep2(s):
+        engine.stop(kit.mid)
+        await orig(s)
+    eng2.sleep = sleep2
+    assert run(eng2.run()) == "stopped"
+
+
+def test_a_text_a_normal_turn_already_showed_gets_no_second_answer(kit):
+    engine.owner_says(kit.mid, "lead", "think about 15m")
+    run(stopper(kit.eng(), kit).run())
+    assert not [t for t in kit.turns.log if t[1] == "owner"]
+    lead = next(t for t in kit.turns.log if t[:2] == ("lead", "ideas"))
+    assert "think about 15m" in lead[2]
+
+
+def test_one_answer_task_a_mission_and_extra_calls_are_dropped(kit, monkeypatch):
+    m = store.load(kit.mid)
+    m["status"] = "paused"
+    store.save(m)
+    calls = []
+
+    async def fake_answer(self):
+        calls.append(self.mid)
+        await asyncio.sleep(0.01)
+    monkeypatch.setattr(engine.Engine, "answer", fake_answer)
+
+    async def main():
+        engine.owner_says(kit.mid, "lead", "one")
+        engine.owner_says(kit.mid, "lead", "two")
+        task = engine._answers[kit.mid]
+        await task
+        engine.owner_says(kit.mid, "lead", "three")  # the first is done: a new one may start
+        await engine._answers[kit.mid]
+    run(main())
+    assert calls == [kit.mid, kit.mid]
+
+
+def test_an_answer_turns_plan_wait_leaves_a_paused_mission_paused(kit):
+    m = store.load(kit.mid)
+    m["status"] = "paused"
+    store.save(m)
+    engine.owner_says(kit.mid, "lead", "hi")
+    kit.turns.over[("lead", "owner")] = [worker.Turn(why="plan", resets_at=5)]
+    run(kit.eng().answer())
+    assert store.load(kit.mid)["status"] == "paused"
+    assert any(t[:2] == ("lead", "owner") for t in kit.turns.log) and len([t for t in kit.turns.log if t[1] == "owner"]) == 2

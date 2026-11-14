@@ -49,7 +49,7 @@ def test_reply_tag_variants():
 
 def test_read_and_wait():
     p = roles.prompt("lead", "read", brief="b", board="", chat="", ask="held")
-    assert '"go_on"' in p and BLIND in p
+    assert '"why"' in p and '"go_on"' not in p and '"stop"' not in p and BLIND in p
     for r in ("builder", "doubter", "defender"):
         with pytest.raises(ValueError):
             roles.prompt(r, "read", brief="", board="", chat="", ask="")

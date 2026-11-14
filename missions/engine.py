@@ -3,16 +3,24 @@
 Blind: worker text is built from the brief, the vault digest, the door's table/gate/tries/reach (in-sample), the chat, and
 the read's one line {held, line, close}. Nothing here asks Homebase for the owner's files."""
 import asyncio
+import re
 import time
 
 from . import digest as _digest, hb as _hb, roles, store, worker
 
 STEPS = ("ideas", "build", "wait", "argue", "verdict", "read")
 ROLES3 = ("builder", "doubter", "defender")
-WORKING = ("running", "waiting_plan")
+WORKING = ("running", "waiting_plan", "waiting_homebase")
 JSON_RETRY = "Your last message had no json block I could read. End your message with the json block."
 JOB_POLL, READ_POLL, JOB_LIMIT = 30, 20, 90 * 60
+READ_LIMIT, READ_SLOW = 6 * 3600, 300  # after READ_LIMIT s the read is polled every READ_SLOW s, with a line
 _active = set()
+_answers = {}  # mid -> the one answer task
+
+
+def _plain(text, cap=200):
+    """A door refusal for a worker: its words, minus every token that holds a digit, so it can carry no number."""
+    return " ".join(w for w in str(text).split() if not re.search(r"\d", w))[:cap] or "The Judge refused."
 
 
 class _NoSystem:
@@ -83,9 +91,11 @@ def owner_says(mid, to, text) -> dict:
     if to not in (*store.ROLES, "all"):
         raise ValueError(f"bad recipient: {to}")
     e = store.event(mid, "chat", "owner", text, to=None if to == "all" else to)
-    if to != "all" and mid not in _active and store.load(mid)["status"] in ("paused", "waiting_owner"):
+    t = _answers.get(mid)
+    if to != "all" and mid not in _active and store.load(mid)["status"] in ("paused", "waiting_owner") \
+            and not (t and not t.done()):  # one answer task a mission: extra calls are dropped
         try:
-            asyncio.get_running_loop().create_task(Engine(mid).answer())
+            _answers[mid] = asyncio.get_running_loop().create_task(Engine(mid).answer())
         except RuntimeError:
             pass  # no loop: the next run answers it
     return e
@@ -104,9 +114,10 @@ def approve_read(mid, said) -> None:
 
 
 class Engine:
-    def __init__(self, mid, *, hb=_hb, run_turn=worker.run_turn, system=None, clock=time.time, sleep=asyncio.sleep):
+    def __init__(self, mid, *, hb=_hb, run_turn=worker.run_turn, system=None, clock=time.time, sleep=asyncio.sleep,
+                 backoff=(30, 300)):
         self.mid, self.hb, self.run_turn, self.system = mid, hb, run_turn, system or _NoSystem()
-        self.clock, self.sleep = clock, sleep
+        self.clock, self.sleep, self.backoff = clock, sleep, backoff
         self.m = store.load(mid)
         self._t = None
         self._digest = None
@@ -144,6 +155,34 @@ class Engine:
         if _asked(self.mid) == "stop":
             raise _Done("stopped")
 
+    async def _nap(self, seconds):
+        """Sleep in slices of 30 s; Stop ends it, Pause leaves the step to be re-entered."""
+        while seconds > 0:
+            self._check_stop()
+            if _asked(self.mid) == "pause":
+                raise _Done("paused")
+            await self.sleep(min(seconds, 30))
+            seconds -= 30
+        self._check_stop()
+
+    async def _h(self, name, *a):
+        """A Homebase call that waits out an outage (capped backoff) and then goes on with the same step."""
+        delay, prev = self.backoff[0], None
+        while True:
+            try:
+                r = getattr(self.hb, name)(*a)
+            except _hb.Down as e:
+                if prev is None:
+                    prev = self.m["status"]
+                    self._status("waiting_homebase")
+                    self._say("engine", f"Homebase is not answering ({_plain(e)}). Waiting.", for_workers=False)
+                await self._nap(delay)
+                delay = min(delay * 2, self.backoff[1])
+                continue
+            if prev is not None:
+                self._status(prev)
+            return r
+
     def _v(self, ref):
         return next((v for v in self.m["versions"] if ref in (v["version"], v["name"])), None)
 
@@ -170,12 +209,12 @@ class Engine:
         return {"goal": {"kind": g.get("kind"), "target": g.get("target"), "rule": g.get("rule")}, "round": m["round"],
                 "tries": tries, "versions": out, "best": best, "reads": m["reads"]}
 
-    def _refresh_tries(self, family):
+    async def _refresh_tries(self, family):
         if not family:
             return
         try:
-            t = self.hb.tries(self.mid, family)
-        except (_hb.Refused, _hb.Down):
+            t = await self._h("tries", self.mid, family)
+        except _hb.Refused:
             return
         self.m["pending"]["tries"] = {k: t.get(k) for k in ("mission", "family_on_file", "total", "needed_t")}
 
@@ -186,15 +225,18 @@ class Engine:
         rows = store.events(self.mid, seen.get(role, 0))
         if rows:
             seen[role] = rows[-1]["n"]
-        return "\n".join(f"{e['who']}: {e['text']}" for e in rows
-                         if e["type"] == "chat" and e["for_workers"] and e["who"] != role
-                         and e["to"] in (None, role) and e["text"] and e["n"] not in exclude)
+        shown = [e for e in rows if e["type"] == "chat" and e["for_workers"] and e["who"] != role
+                 and e["to"] in (None, role) and e["text"] and e["n"] not in exclude]
+        done = self.m["pending"].setdefault("answered", [])
+        done += [e["n"] for e in shown if e["who"] == "owner" and e["to"] == role and e["n"] not in done]  # shown: answered
+        return "\n".join(f"{e['who']}: {e['text']}" for e in shown)
 
     async def _wait_plan(self, resets_at):
+        prev = self.m["status"]
         self._status("waiting_plan")
         self.system.alert(self.mid, "waiting_plan")
         await self.system.wait_for_plan(resets_at, sleep=self.sleep)
-        self._status("running")
+        self._status(prev if prev in ("paused", "waiting_owner") else "running")
 
     async def _once(self, role, step, chat, ask, session, kw, digest=None):
         team = self.m["team"][role]
@@ -269,7 +311,7 @@ class Engine:
         m = self.m
         if _asked(self.mid) == "stop":
             raise _Done("stopped")
-        if self.system.limit_hit(m, len(m["versions"])):
+        if not (m["limits"] or {}).get("until_goal") and self.system.limit_hit(m, len(m["versions"])):
             raise _Done("limit")
         if m["empty_rounds"] >= 2:
             raise _Done("out_of_reach")
@@ -305,38 +347,48 @@ class Engine:
         t, rep = await self._turn("lead", "ideas", "\n".join(ask), digest=self._digest_text())
         rows = [r for r in ((rep or {}).get("plan") or []) if isinstance(r, dict) and isinstance(r.get("idea"), str)
                 and isinstance(r.get("family"), str)][:3]
-        plan = []
+        plan, unchecked = [], t is None
         for r in rows:
             p["vn"] = n = p.get("vn", max((int(v["version"][1:]) for v in m["versions"]), default=0)) + 1
             row = {"version": f"v{n:02d}", "name": roles.version_name(self.mid, n), "idea": r["idea"],
                    "family": r["family"], "why": r.get("why", "")}
             try:
-                reach = self.hb.reach(self.mid, r["family"])
+                reach = await self._h("reach", self.mid, r["family"])
                 why = None if reach.get("reachable") else \
                     f"the luck bar needed is above anything {r['family']} has shown"
             except _hb.Refused as e:
-                why = str(e)
+                why, unchecked = _plain(e), True
             if why:
                 self._judge(f"{row['version']} is dropped: {why}.")
             else:
                 plan.append(row)
         p["plan"], p["fixes"], p["plan_change"] = plan, None, None
-        m["empty_rounds"] = 0 if plan else m["empty_rounds"] + 1
         if plan:
-            self._refresh_tries(plan[0]["family"])
+            m["empty_rounds"] = 0
+            p["failed_rounds"] = 0
+            await self._refresh_tries(plan[0]["family"])
             self._goto("build")
-        else:
-            m["step"] = None
+            return
+        m["step"] = None
+        if unchecked:  # a failed turn or a refused check is not an empty round: the same round again, after a nap
+            p["failed_rounds"] = k = p.get("failed_rounds", 0) + 1
+            m["round"] -= 1
             self._save()
-            store.event(self.mid, "step", "engine", "ideas: nothing left to build", for_workers=False)
+            self._say("engine", "The Lead's plan could not be made or checked this round. Trying the round again.",
+                      for_workers=False)
+            await self._nap(min(60 * k, 600))
+            return
+        m["empty_rounds"] += 1
+        self._save()
+        store.event(self.mid, "step", "engine", "ideas: nothing left to build", for_workers=False)
 
     # ---- 2. build
 
-    def _register(self, row, builder_job):
+    async def _register(self, row, builder_job):
         """Only a name with a wf row on the ledger counts as built, whatever the Builder says."""
         if self._v(row["name"]):
             return True
-        made = self.hb.made(self.mid, row["name"])
+        made = await self._h("made", self.mid, row["name"])
         if not (made and made.get("wf")):
             return False
         self.m["versions"].append({"name": row["name"], "version": row["version"], "round": self.m["round"],
@@ -350,7 +402,7 @@ class Engine:
         plan, jobs = self.m["pending"]["plan"], {}
         for attempt in (0, 1):
             for r in plan:
-                self._register(r, jobs.get(r["version"]))
+                await self._register(r, jobs.get(r["version"]))
             left = [r for r in plan if not self._v(r["name"])]
             if not left:
                 break
@@ -365,7 +417,7 @@ class Engine:
                 if isinstance(b, dict):
                     jobs[b.get("version")] = b.get("job_id")
         for r in plan:
-            if not self._register(r, jobs.get(r["version"])):
+            if not await self._register(r, jobs.get(r["version"])):
                 self._judge(f"{r['version']} is not on the ledger and is dropped.")
         self._goto("wait")
 
@@ -380,10 +432,10 @@ class Engine:
                     v["state"] = "done"
                     continue
                 try:
-                    j = self.hb.job(v["job_id"])
+                    j = await self._h("job", v["job_id"])
                 except _hb.Refused as e:
-                    v["state"], v["why"] = "dropped", str(e)
-                    self._judge(f"{v['name']} is dropped: {e}.")
+                    v["state"], v["why"] = "dropped", _plain(e)
+                    self._judge(f"{v['name']} is dropped: {v['why']}.")
                     continue
                 if j["done"] and j["ok"]:
                     v["state"] = "done"
@@ -428,16 +480,16 @@ class Engine:
         m = self.m
         for v in self._round_versions("done"):
             try:
-                t = self.hb.table(self.mid, v["name"])
+                t = await self._h("table", self.mid, v["name"])
                 if not t.get("pick"):
                     why = f"no box picked: {t.get('why_no_pick')}"
                     v["state"], v["why"] = "dropped", why
                     self._judge(f"{v['name']} is dropped: {why}.")
                     continue
-                g = self.hb.gate(self.mid, v["name"], t["pick"])
+                g = await self._h("gate", self.mid, v["name"], t["pick"])
             except _hb.Refused as e:
-                v["state"], v["why"] = "dropped", str(e)
-                self._judge(f"{v['name']} is dropped: {e}.")
+                v["state"], v["why"] = "dropped", _plain(e)
+                self._judge(f"{v['name']} is dropped: {v['why']}.")
                 continue
             row = next((r for r in t.get("rows", []) if r.get("box") == t["pick"]), {})
             v.update(box=t["pick"], gate=g, state="gated",
@@ -488,7 +540,7 @@ class Engine:
         v = next((x for x in m["versions"] if x["state"] == "reading"), None)
         if not v:
             ok = [x for x in m["versions"] if x["state"] == "cleared"]
-            if not ok:
+            if not ok or p.get("read_round") == m["round"]:  # one read a round, even after a resume
                 return self._end_round()
             v = max(ok, key=lambda x: x["gate"]["goal"].get("value") or 0)
             said = None
@@ -501,36 +553,39 @@ class Engine:
                     raise _Done("waiting_owner")
                 said = p.pop("read_ok")
                 p.pop("read_for")
-            v["state"] = "reading"
-            self._save()  # saved before the start: a restart finds "reading" and starts nothing twice
-            self.hb.start_read(self.mid, v["name"], v["box"], said)
-        while (r := self.hb.read_result(self.mid, v["name"])) is None:
+            v.update(state="reading", read_said=said, read_since=self.clock())
+            p["read_round"] = m["round"]
+            self._save()  # saved before the start: a restart finds "reading" and asks for the start again
+        # start_read is idempotent (a claim or a result means nothing new starts), so every entry asks for it
+        await self._h("start_read", self.mid, v["name"], v["box"], v.get("read_said"))
+        slow = False
+        while (r := await self._h("read_result", self.mid, v["name"])) is None:
             await self.answer()
-            self._check_stop()
-            await self.sleep(READ_POLL)
+            if not slow and self.clock() - v.get("read_since", self.clock()) > READ_LIMIT:
+                slow = True
+                self._say("engine", f"The read of {v['name']} is taking very long. Still waiting.", for_workers=False)
+            await self._nap(READ_SLOW if slow else READ_POLL)
         if "refused" in r:
             v["state"] = "spent"
-            self._judge(str(r["refused"]))
-            return self._end_round()
-        heard = {k: r.get(k) for k in ("held", "line", "close")}
-        v["heard"] = heard
-        self._judge(f"The test months: held={heard['held']}. {heard['line']}. {heard['close']}.")
-        if heard["held"]:
-            v["state"] = "frozen"
-            m["result"] = {"version": v["version"], "name": v["name"], "box": v.get("box_label")}
-            m["reads"] += 1
             m["step"] = None
             self._save()
-            raise _Done("achieved")
+            self._judge(_plain(r["refused"]))
+            return
+        heard = {k: r.get(k) for k in ("held", "line", "close")}
+        v["heard"] = heard
         v["state"] = "frozen"
         m["reads"] += 1
+        m["step"] = None  # the same save: a resume never picks a second version in this round
+        if heard["held"]:
+            m["result"] = {"version": v["version"], "name": v["name"], "box": v.get("box_label")}
         self._save()
+        self._judge(f"The test months: held={heard['held']}. {heard['line']}. {heard['close']}.")
+        if heard["held"]:
+            raise _Done("achieved")
         _, rep = await self._turn("lead", "read", f"The Judge answered: {heard}")
-        if rep and isinstance(rep.get("why"), str):
+        if rep and isinstance(rep.get("why"), str):  # advice only: the Lead never ends a mission
             p["next"] = rep["why"]
-        if rep and rep.get("next") == "stop":
-            raise _Done("stopped")
-        self._end_round()
+        self._save()
 
     def _end_round(self):
         self.m["step"] = None
@@ -539,17 +594,17 @@ class Engine:
     # ---- his texts
 
     async def answer(self):
-        """One turn right away for every unanswered text of the owner to one worker."""
+        """One turn right away for every text of the owner to one worker that no normal turn has shown yet."""
         p = self.m["pending"]
-        done = p.get("answered", 0)
-        for e in store.events(self.mid, done):
-            if e["type"] == "chat" and e["who"] == "owner" and e["to"] in store.ROLES:
+        for e in store.events(self.mid):
+            if e["type"] == "chat" and e["who"] == "owner" and e["to"] in store.ROLES \
+                    and e["n"] not in p.setdefault("answered", []):
+                p["answered"].append(e["n"])
                 _, rep = await self._turn(e["to"], "owner", e["text"], exclude={e["n"]})
                 if rep and isinstance(rep.get("reply"), str):
                     self._say(e["to"], rep["reply"])
                     if e["to"] == "lead" and isinstance(rep.get("plan_change"), str):
                         p["plan_change"] = rep["plan_change"]
-            p["answered"] = max(p.get("answered", 0), e["n"])
         self._save()
 
 

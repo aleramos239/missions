@@ -20,8 +20,8 @@ _C = {
                             '"fixes": [{"idea": "...", "family": "...", "why": "..."}]}'),
     ("lead", "verdict"): '{"to_owner": "<two plain sentences>", "next": "<what the next round tries>"}',
 }
-_C[("lead", "read")] = ('{"next": "stop" | "go_on", "why": "..."} '
-                        "(plain words first: say what the Judge's one-line answer means)")
+_C[("lead", "read")] = ('{"why": "..."} (advice only: plain words first, say what the Judge\'s one-line answer means '
+                        "and what the next round could try. You cannot stop the mission)")
 _OWNER = '{"reply": "..."}'
 _STEPS = {"brief": "Write the brief with the owner.", "ideas": "Step: ideas. Write your angles alone.",
           "build": "Step: build. Make the planned versions and start their tables.",
