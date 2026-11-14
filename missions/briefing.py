@@ -94,7 +94,7 @@ async def _step(mid, answer, run_turn, hb):
     p = m["pending"].setdefault("brief", {"asked": 0})
     if answer:
         store.event(mid, "chat", "owner", answer)
-    accounts = hb.accounts()
+    accounts = await asyncio.to_thread(hb.accounts)
     ask = answer or None
     lead = m["team"]["lead"]
     for attempt in (0, 1):
@@ -151,10 +151,12 @@ def _loop():
         return None
 
 
-def approve(mid, said, *, hb):
+def approve(mid, said, *, hb, loop=None):
+    """loop: pass the event loop when this runs in a thread (the lock check needs it)."""
     if not isinstance(said, str) or not said.strip():
         raise ValueError("the owner's words are needed")
-    if _locks.get((_loop(), mid)) and _locks[(_loop(), mid)].locked():
+    lp = loop or _loop()
+    if _locks.get((lp, mid)) and _locks[(lp, mid)].locked():
         raise ValueError("the Lead is still working")
     m = store.load(mid)
     if m["status"] != "briefing":

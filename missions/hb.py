@@ -78,15 +78,15 @@ def gate(mid, name, box):
 
 
 def table(mid, name):
-    return door("table", mid, name)
+    return door("table", mid, _name(name))
 
 
 def odds(mid, name, box):
-    return door("odds", mid, name, _box(box), timeout=1800)
+    return door("odds", mid, _name(name), _box(box), timeout=1800)
 
 
 def mc(mid, name, box):
-    return door("mc", mid, name, _box(box))
+    return door("mc", mid, _name(name), _box(box))
 
 
 # ---- the brief file and the mission's files in Homebase

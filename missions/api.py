@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 import threading
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Request
@@ -17,13 +17,54 @@ STATIC = Path(__file__).parent / "static"
 HOSTS = ("127.0.0.1", "localhost")
 ORIGINS = ("http://127.0.0.1:8860", "http://localhost:8860")
 WARN = "This looks like a test-month number. The team must never see one. Send anyway?"
-NUMBERISH = re.compile(r"\d\s*(?:%|\$|pts\b|points\b|trades\b)|\$\s*\d", re.I)
+NUMBERISH = re.compile(r"\d\s*(?:%|\$|pts?\b|points?\b|trades?\b)|\$\s*\d", re.I)
+LIMITS = ("tries", "hours", "usage", "until_goal")
 _odds = {}  # (mid, name, box) -> {"done", "result"/"err"}: one computation at a time
 _odds_lock = threading.Lock()
 
 
 class NotFound(Exception):
     pass
+
+
+class Bad(Exception):
+    pass
+
+
+@contextmanager
+def bad():
+    """The owner's request was wrong: a plain 400."""
+    try:
+        yield
+    except (ValueError, KeyError) as e:
+        raise Bad(f"missing {e}" if isinstance(e, KeyError) else str(e)) from None
+
+
+class Guard:
+    """Pure ASGI (no BaseHTTPMiddleware, so a streaming response is cancelled cleanly): local Host only, local Origin on
+    writes, no-cache on the page."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        h = {k.decode().lower(): v.decode() for k, v in scope["headers"]}
+        host = h.get("host", "")
+        name = host[1:host.index("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0] if ":" in host else host
+        o = h.get("origin")
+        if name.lower() not in HOSTS:
+            return await _bad("this app answers only on 127.0.0.1", 403)(scope, receive, send)
+        if scope["method"] != "GET" and o is not None and o not in ORIGINS:
+            return await _bad("foreign origin", 403)(scope, receive, send)
+        page = not scope["path"].startswith("/api")
+
+        async def snd(msg):
+            if page and msg["type"] == "http.response.start":
+                msg["headers"] = [*msg["headers"], (b"cache-control", b"no-cache")]
+            await send(msg)
+        await self.app(scope, receive, snd)
 
 
 def _bad(msg, code=400):
@@ -37,16 +78,28 @@ def _mission(mid):
         raise NotFound(f"no mission {mid}") from None
 
 
+def _version(m, name):
+    """The mission's own version name, else 404: nothing else reaches the door."""
+    v = next((x for x in m["versions"] if x["name"] == name), None)
+    if v is None:
+        raise NotFound(f"no version {name}")
+    return v
+
+
 def _badge(m):
     return {"waiting_owner": "needs you", "briefing": "brief", "waiting_plan": "waiting for the plan", "crashed": "error",
             "waiting_homebase": "Homebase down"}.get(m["status"])
 
 
+T_SAID = re.compile(r"^\s*t\s+(-?\d+(?:\.\d+)?)")
+
+
 def _t(gate):
-    """The luck line's figure, if the Judge gave one."""
+    """The t in the luck line's words ("t 3.1 in-sample (need ..."); None when it says none."""
     for x in (gate or {}).get("lines", []):
         if x.get("line") == "luck":
-            return x.get("t", x.get("value"))
+            m = T_SAID.match(str(x.get("said") or ""))
+            return float(m[1]) if m else None
     return None
 
 
@@ -63,11 +116,11 @@ def _right(m, board):
             "reads": m["reads"], "doing": {"status": m["status"], "step": m["step"]}}
 
 
-async def event_stream(mid, after=0, *, poll=0.5, beat=15):
+async def event_stream(mid, after=0, *, poll=0.5, beat=15, gone=None):
     """SSE lines: one `data:` per new event; a comment line every `beat` seconds of quiet (and first, to open the stream)."""
     yield ": open\n\n"
     quiet = 0.0
-    while True:
+    while not (gone and await gone()):
         rows = await asyncio.to_thread(store.events, mid, after)
         for e in rows:
             after = e["n"]
@@ -92,20 +145,6 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
 
     app = FastAPI(lifespan=life)
 
-    @app.middleware("http")
-    async def guard(request: Request, call_next):
-        host = request.headers.get("host", "")
-        name = host[1:host.index("]")] if host.startswith("[") else host.rsplit(":", 1)[0] if ":" in host else host
-        if name not in HOSTS:
-            return _bad("this app answers only on 127.0.0.1", 403)
-        o = request.headers.get("origin")
-        if request.method != "GET" and o is not None and o not in ORIGINS:
-            return _bad("foreign origin", 403)
-        r = await call_next(request)
-        if not request.url.path.startswith("/api"):
-            r.headers["cache-control"] = "no-cache"
-        return r
-
     @app.exception_handler(NotFound)
     async def _nf(_, e):
         return _bad(str(e), 404)
@@ -118,13 +157,9 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     async def _ref(_, e):
         return _bad(str(e), 409)
 
-    @app.exception_handler(ValueError)
+    @app.exception_handler(Bad)
     async def _val(_, e):
         return _bad(str(e), 400)
-
-    @app.exception_handler(KeyError)
-    async def _key(_, e):
-        return _bad(f"missing {e}", 400)
 
     # ---- pages
     @app.get("/")
@@ -141,16 +176,23 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         return [{"id": m["id"], "title": m["title"], "status": m["status"], "round": m["round"], "badge": _badge(m)}
                 for m in store.missions()]
 
-    async def brief_turn(mid, answer=None):
-        out = await briefing.next_step(mid, answer, run_turn=run_turn, hb=hb)
+    async def brief_turn(mid, answer=None, background=False):
+        try:
+            out = await briefing.next_step(mid, answer, run_turn=run_turn, hb=hb)
+        except Exception as e:  # the mission stays in "briefing": the next /brief/answer tries again
+            if not background:
+                raise
+            store.event(mid, "chat", "engine", f"The brief stopped ({e}). Answer again to retry.", for_workers=False)
+            return {"error": str(e)}
         if "error" in out:
             store.event(mid, "chat", "engine", f"The brief stopped: {out['error']}", for_workers=False)
         return out
 
     @app.post("/api/missions")
     async def create(body: dict = Body(...)):
-        m = store.new_mission(body["sentence"], body["team"], body.get("limits") or {}, body["test_months"])
-        t = asyncio.create_task(brief_turn(m["id"]))
+        with bad():
+            m = store.new_mission(body["sentence"], body["team"], body.get("limits") or {}, body["test_months"])
+        t = asyncio.create_task(brief_turn(m["id"], background=True))
         tasks.add(t)
         t.add_done_callback(tasks.discard)
         return m
@@ -167,59 +209,68 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         return store.events(mid, after)
 
     @app.get("/api/missions/{mid}/stream")
-    async def stream(mid: int, after: int = 0):
+    async def stream(request: Request, mid: int, after: int = 0):
         _mission(mid)
-        return StreamingResponse(event_stream(mid, after), media_type="text/event-stream",
+        return StreamingResponse(event_stream(mid, after, gone=request.is_disconnected), media_type="text/event-stream",
                                  headers={"cache-control": "no-cache"})
 
     # ---- the brief and the chat
     @app.post("/api/missions/{mid}/brief/answer")
     async def brief_answer(mid: int, body: dict = Body(...)):
         _mission(mid)
-        out = await brief_turn(mid, body["text"])
+        with bad():
+            text = body["text"]
+        out = await brief_turn(mid, text)
         return _bad(out["error"], 409) if "error" in out else out
 
     @app.post("/api/missions/{mid}/brief/approve")
     async def brief_approve(mid: int, body: dict = Body(...)):
         _mission(mid)
-        return briefing.approve(mid, body.get("said"), hb=hb)
+        with bad():
+            return await asyncio.to_thread(briefing.approve, mid, body.get("said"), hb=hb, loop=asyncio.get_running_loop())
 
     @app.post("/api/missions/{mid}/chat")
     async def chat(mid: int, body: dict = Body(...)):
         m = _mission(mid)
         text = body.get("text")
         if not isinstance(text, str) or not text.strip():
-            raise ValueError("the text is empty")
+            raise Bad("the text is empty")
         if m["reads"] >= 1 and NUMBERISH.search(text) and body.get("sure") is not True:
             return {"warn": WARN}
-        return engine.owner_says(mid, body.get("to", "all"), text.strip())
+        with bad():
+            return engine.owner_says(mid, body.get("to", "all"), text.strip())
 
     # ---- the engine's switches
-    for name, fn in (("pause", engine.pause), ("resume", engine.resume), ("stop", engine.stop)):
-        def sw(mid: int, fn=fn):
+    def switch(fn):
+        def sw(mid: int):
             _mission(mid)
             fn(mid)
             return {"status": store.load(mid)["status"]}
-        app.add_api_route(f"/api/missions/{{mid}}/{name}", sw, methods=["POST"])
+        return sw
+    for name, fn in (("pause", engine.pause), ("resume", engine.resume), ("stop", engine.stop)):
+        app.add_api_route(f"/api/missions/{{mid}}/{name}", switch(fn), methods=["POST"])
 
     @app.post("/api/missions/{mid}/read/approve")
     async def read_approve(mid: int, body: dict = Body(...)):
         _mission(mid)
-        engine.approve_read(mid, body.get("said"))
+        with bad():
+            engine.approve_read(mid, body.get("said"))
         return {"status": store.load(mid)["status"]}
 
     @app.patch("/api/missions/{mid}")
     async def patch(mid: int, body: dict = Body(...)):
         m = _mission(mid)
         if "test_months" in body and body["test_months"] not in ("team", "ask"):
-            raise ValueError("test_months is team or ask")
-        if "limits" in body and not isinstance(body["limits"], dict):
-            raise ValueError("limits must be an object")
+            raise Bad("test_months is team or ask")
+        if "limits" in body and not (isinstance(body["limits"], dict) and set(body["limits"]) <= set(LIMITS)):
+            raise Bad(f"limits is an object with only {list(LIMITS)}")
         if "team" in body:
-            for r in store.ROLES:
-                t = (body["team"] or {}).get(r)
-                if not isinstance(t, dict) or t.get("model") not in store.MODELS or t.get("effort") not in store.EFFORTS:
-                    raise ValueError(f"bad team entry for {r}")
+            t = body["team"]
+            if not isinstance(t, dict) or set(t) != set(store.ROLES):
+                raise Bad(f"team needs exactly {list(store.ROLES)}")
+            for r_ in store.ROLES:
+                if not isinstance(t[r_], dict) or t[r_].get("model") not in store.MODELS or t[r_].get("effort") not in store.EFFORTS:
+                    raise Bad(f"bad team entry for {r_}")
         for k in engine.OWNER_KEYS:
             if k in body:
                 m[k] = body[k]
@@ -239,19 +290,19 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
 
     @app.get("/api/missions/{mid}/table")
     async def table(mid: int, name: str):
-        _mission(mid)
+        _version(_mission(mid), name)
         return await asyncio.to_thread(hb.table, mid, name)
 
     @app.get("/api/missions/{mid}/box")
     async def box(mid: int, name: str, box: str):
-        _mission(mid)
+        _version(_mission(mid), name)
         t = await asyncio.to_thread(hb.table, mid, name)
         row = next((r for r in t.get("rows", []) if str(r.get("box")) == box), None)
         return {"row": row, "mc": await asyncio.to_thread(hb.mc, mid, name, box)}
 
     @app.get("/api/missions/{mid}/odds")
     async def odds(mid: int, name: str, box: str):
-        _mission(mid)
+        _version(_mission(mid), name)
         key = (mid, name, box)
         with _odds_lock:
             s = _odds.get(key)
@@ -331,7 +382,7 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         system.pause_hunt(bool(body["pause"]))
         return {"hunt_paused": system.hunt_paused()}
 
-    return app
+    return Guard(app)
 
 
 app = make_app(runner=True)

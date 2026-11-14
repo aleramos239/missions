@@ -141,7 +141,7 @@ def test_patch_rewrites_the_homebase_brief():
 
 def seeded():
     mid = mk(versions=[{"name": f"m1_v01", "version": "v01", "round": 1, "state": "frozen", "box": 7, "box_label": "1.5 · #7",
-                        "gate": {"lines": [], "charges": [], "goal": {"value": 3.1}}, "heard": {"held": False, "line": "x", "close": True}}],
+                        "gate": {"lines": [{"line": "luck", "ok": True, "said": "t 3.1 in-sample (need 3.5+ after 7 tries), net 12,345"}], "charges": [], "goal": {"value": 3.1}}, "heard": {"held": False, "line": "x", "close": True}}],
              round=1, pending={"tries": {"mission": 7, "family_on_file": 0, "total": 7, "needed_t": 3.5}})
     return mid
 
@@ -202,6 +202,7 @@ def test_running_and_progress():
     assert {"workers", "jobs", "slots", "usage", "cost_usd", "run_seconds"} <= set(d)
     p = call("GET", f"/api/missions/{mid}/progress").json()
     assert p[0]["round"] == 1 and p[0]["best"] == 3.1 and p[0]["target"] == 3.0
+    assert p[0]["best_t"] == 3.1 and p[0]["needed_t"] == 3.5
 
 
 def test_homebase_down_is_503():
@@ -220,3 +221,67 @@ def test_connections_and_hunt(monkeypatch):
     call("POST", "/api/connections", json={"ntfy_topic": "abc", "bogus": 1})
     assert config.settings() == {"ntfy_topic": "abc"}
     assert call("POST", "/api/hunt", json={"pause": True}).status_code == 200 and got == [True]
+
+
+def test_luck_bar_in_plain_words():
+    mid = seeded()
+    assert call("GET", f"/api/missions/{mid}").json()["right"]["luck"] == "needs 3.5 after 7 tries; has 3.1"
+    assert api._t({"lines": [{"line": "luck", "ok": False, "said": "t None in-sample (need 3.5+)"}]}) is None
+
+
+def test_bad_names_are_404_and_the_adapter_refuses_them():
+    import pytest
+    from missions import hb
+    mid = seeded()
+    for n in ("../x", "--flag", "m9_v09"):
+        for path in ("table?name=", "box?box=7&name=", "odds?box=7&name="):
+            assert call("GET", f"/api/missions/{mid}/{path}{n}").status_code == 404
+    for f in (lambda n: hb.table(1, n), lambda n: hb.mc(1, n, "7"), lambda n: hb.odds(1, n, "7")):
+        for n in ("../x", "--flag"):
+            with pytest.raises(hb.Refused):
+                f(n)
+
+
+def test_a_down_homebase_in_the_background_brief_leaves_the_mission_retryable():
+    fake = FakeHB()
+    fake.accounts = lambda: (_ for _ in ()).throw(FakeHB.Down("gone"))
+
+    async def go():
+        app = api.make_app(hb=fake)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE) as c:
+            r = await c.post("/api/missions", json={"sentence": "go", "team": TEAM, "limits": {}, "test_months": "team"})
+            await asyncio.sleep(0.2)
+            return r.json()["id"]
+    mid = asyncio.run(go())
+    assert store.load(mid)["status"] == "briefing"
+    assert any("gone" in e["text"] and not e["for_workers"] for e in store.events(mid))
+
+
+def test_a_disconnected_request_ends_the_stream():
+    mid = mk()
+
+    async def go():
+        n = []
+
+        async def gone():
+            n.append(1)
+            return len(n) > 2
+        return [x async for x in api.event_stream(mid, 0, poll=0.01, gone=gone)]
+    assert asyncio.run(go()) == [": open\n\n"]
+
+
+def test_a_stray_query_param_is_ignored_by_the_switches():
+    mid = mk()
+    assert call("POST", f"/api/missions/{mid}/pause?fn=x").status_code == 200
+    assert store.load(mid)["status"] == "paused"
+
+
+def test_minors():
+    mid = mk(reads=1)
+    assert call("GET", "/api/missions", headers={"host": "LocalHost:8860"}).status_code == 200
+    for t in ("1 trade", "3 pt", "2 point"):
+        assert "warn" in call("POST", f"/api/missions/{mid}/chat", json={"to": "all", "text": t}).json()
+    for body in ({"limits": {"bogus": 1}}, {"team": {"lead": {"model": "haiku", "effort": "low"}}},
+                 {"team": {**TEAM, "boss": TEAM["lead"]}}):
+        assert call("PATCH", f"/api/missions/{mid}", json=body).status_code == 400
+    assert call("POST", f"/api/missions/{mid}/chat", json={"to": "nobody", "text": "hi"}).status_code == 400
