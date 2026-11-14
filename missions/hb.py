@@ -180,13 +180,19 @@ def family_of(name):
 
 def job(job_id):
     d = config.ideas_root() / "_jobs" / _name(str(job_id))
-    try:
-        j = json.loads((d / "job.json").read_text())
-    except (OSError, ValueError):
-        raise Refused(f"no job {job_id}") from None
+
+    def load():
+        try:
+            return json.loads((d / "job.json").read_text())
+        except (OSError, ValueError):
+            raise Refused(f"no job {job_id}") from None
+    j = load()
     done = j.get("state") in ("done", "error")
-    if not done and j.get("pid") and not _alive(int(j["pid"])):  # no pid field: left as job.json says
-        return {"done": True, "ok": False, "said": "the job's process is gone", "progress": None}
+    if not done and j.get("pid") and not _alive(j["pid"]):  # no pid field: left as job.json says
+        j = load()  # it may have finished between the read and the check
+        done = j.get("state") in ("done", "error")
+        if not done:
+            return {"done": True, "ok": False, "said": "the job's process is gone", "progress": None}
     ok, said = False, j.get("progress") or ""
     if done:
         try:
@@ -240,6 +246,10 @@ def owner_refused(mid):
 
 
 def _alive(pid):
+    try:
+        pid = int(pid)
+    except (ValueError, TypeError):
+        return False  # a malformed pid is no process
     p = _children.get(pid)
     if p is not None:
         return p.poll() is None  # our own child: poll reaps it
@@ -269,32 +279,45 @@ def start_read(mid, name, box, said=None):
     result means start nothing (the version is spent)."""
     out, pidf = _paths(mid, name)
     box = _box(box)
+    if out.exists():
+        return _pid(pidf)
     try:
         os.close(os.open(pidf, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
     except FileExistsError:
         return _pid(pidf)
     cmd = f"{shlex.quote(str(config.judge()))} read {int(mid)} {shlex.quote(name)} {shlex.quote(box)}" \
           + (f" --said {shlex.quote(said)}" if said else "")
-    p = subprocess.Popen(["/bin/sh", "-c", f"{cmd} > {shlex.quote(str(out))}.tmp 2>/dev/null; "
-                          f"mv {shlex.quote(str(out))}.tmp {shlex.quote(str(out))}"],
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+    try:
+        p = subprocess.Popen(["/bin/sh", "-c", f"{cmd} > {shlex.quote(str(out))}.tmp 2>/dev/null; "
+                              f"mv {shlex.quote(str(out))}.tmp {shlex.quote(str(out))}"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    except OSError as e:
+        pidf.unlink(missing_ok=True)  # nothing started: the read can be tried again
+        raise Down(f"the read could not be started ({e})") from e
     _children[p.pid] = p
     pidf.write_text(str(p.pid))
     return p.pid
 
 
-def read_result(mid, name):
-    out, pidf = _paths(mid, name)
+def _answer(out):
     try:
         return json.loads(out.read_text())
     except ValueError:
         return {"refused": STOPPED}
     except OSError:
-        pass
+        return None
+
+
+def read_result(mid, name):
+    out, pidf = _paths(mid, name)
+    if (r := _answer(out)) is not None:
+        return r
     if not pidf.exists():
         return None  # never started
     pid = _pid(pidf)
     if pid == 0:  # claimed, pid not written yet; a claim that stays empty means the app died before the spawn
         return None if time.time() - pidf.stat().st_mtime < 10 else {"refused": STOPPED}
-    return None if _alive(pid) else {"refused": STOPPED}
+    if _alive(pid):
+        return None
+    return _answer(out) or {"refused": STOPPED}  # it may have finished between the read and the check

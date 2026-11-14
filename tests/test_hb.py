@@ -222,3 +222,59 @@ def test_fakehb_has_every_hb_function():
     pub = {n for n in dir(hb) if not n.startswith("_") and callable(getattr(hb, n))
            and getattr(getattr(hb, n), "__module__", "") == "missions.hb" and n not in ("Refused", "Down", "Slow")}
     assert pub <= {n for n in dir(FakeHB) if not n.startswith("_")} | {"door", "reach"}
+
+
+def test_start_with_a_result_and_no_pid_file_starts_nothing(monkeypatch):
+    _mission()
+    out = store.mdir(1) / "read_m1_v01.json"
+    out.write_bytes(b'{"held": true, "line": "first", "close": false}')
+    monkeypatch.setattr(hb.subprocess, "Popen", lambda *a, **k: pytest.fail("spawned"))
+    assert hb.start_read(1, "m1_v01", "12") == 0
+    assert out.read_bytes() == b'{"held": true, "line": "first", "close": false}'
+    assert not (store.mdir(1) / "read_m1_v01.pid").exists()
+
+
+def test_read_result_rechecks_the_file_after_the_liveness_check(monkeypatch):
+    _mission()
+    out = store.mdir(1) / "read_m1_v01.json"
+    (store.mdir(1) / "read_m1_v01.pid").write_text("123")
+
+    def alive(pid):
+        out.write_text('{"held": true, "line": "late", "close": false}')
+        return False
+    monkeypatch.setattr(hb, "_alive", alive)
+    assert hb.read_result(1, "m1_v01")["line"] == "late"
+
+
+def test_job_rechecks_job_json_after_the_liveness_check(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOMEBASE_IDEAS_ROOT", str(tmp_path / "ideas"))
+    j = tmp_path / "ideas" / "_jobs" / "j1"
+    j.mkdir(parents=True)
+    (j / "job.json").write_text(json.dumps({"state": "running", "pid": 5}))
+
+    def alive(pid):
+        (j / "result.json").write_text(json.dumps({"ok": True, "text": "done fine"}))
+        (j / "job.json").write_text(json.dumps({"state": "done", "pid": 5}))
+        return False
+    monkeypatch.setattr(hb, "_alive", alive)
+    assert hb.job("j1") == {"done": True, "ok": True, "said": "done fine", "progress": None}
+
+
+def test_malformed_pid_is_not_alive(tmp_path, monkeypatch):
+    assert hb._alive("abc") is False and hb._alive(None) is False
+    monkeypatch.setenv("HOMEBASE_IDEAS_ROOT", str(tmp_path / "ideas"))
+    j = tmp_path / "ideas" / "_jobs" / "j1"
+    j.mkdir(parents=True)
+    (j / "job.json").write_text(json.dumps({"state": "running", "pid": "x1"}))
+    assert hb.job("j1")["said"] == "the job's process is gone"
+
+
+def test_popen_failure_releases_the_claim(monkeypatch):
+    _mission()
+
+    def boom(*a, **k):
+        raise OSError("no fork")
+    monkeypatch.setattr(hb.subprocess, "Popen", boom)
+    with pytest.raises(hb.Down):
+        hb.start_read(1, "m1_v01", "12")
+    assert not (store.mdir(1) / "read_m1_v01.pid").exists()
