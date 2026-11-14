@@ -622,3 +622,10 @@ def test_the_owners_patch_survives_an_engine_save():
         ({"hours": {"n": 2}}, "ask", "opus", 3)
     eng._save()  # a second save keeps it too
     assert store.load(m["id"])["limits"] == {"hours": {"n": 2}}
+
+
+def test_an_ending_writes_the_wrapup_once(kit):
+    from missions import config
+    kit.fake.reads[f"m{kit.mid}_v01"] = {"held": True, "line": "", "close": "close"}
+    assert run(kit.eng().run()) == "achieved"
+    assert (config.vault() / "RECENT.md").read_text().count(f"Mission {kit.mid} ") == 1

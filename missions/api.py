@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import briefing, config, engine, hb as _hb, store, system, worker
+from . import briefing, config, engine, hb as _hb, store, system, worker, wrapup
 
 STATIC = Path(__file__).parent / "static"
 HOSTS = ("127.0.0.1", "localhost")
@@ -262,6 +262,16 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         with bad():
             engine.approve_read(mid, body.get("said"))
         return {"status": store.load(mid)["status"]}
+
+    @app.post("/api/missions/{mid}/dead")
+    async def dead(mid: int, body: dict = Body(...)):
+        m = _mission(mid)
+        with bad():
+            fam = body["family"]
+            if m["status"] not in store.DONE or not any(v.get("family") == fam for v in m["versions"]):
+                raise ValueError("the mission is not over, or never used that family")
+            wrapup.mark_dead(fam, f"mission {mid}", body.get("said"))
+        return {"dead": fam}
 
     @app.patch("/api/missions/{mid}")
     async def patch(mid: int, body: dict = Body(...)):

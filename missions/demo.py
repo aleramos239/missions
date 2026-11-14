@@ -144,6 +144,10 @@ def make_app():
             return {"warn": api.WARN}
         return {"n": 99, "at": datetime.now(timezone.utc).isoformat(), "type": "chat", "who": "owner", "to": None, "text": body.get("text"), "data": None}
 
+    @app.post("/api/missions/{mid}/dead")
+    async def dead(mid: int, body: dict = Body(...)):
+        return {"dead": body.get("family")}
+
     for name in ("pause", "resume", "stop"):
         app.add_api_route(f"/api/missions/{{mid}}/{name}", lambda mid: {"status": "paused"}, methods=["POST"])
     return api.Guard(app)

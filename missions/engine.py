@@ -7,7 +7,7 @@ import copy
 import re
 import time
 
-from . import digest as _digest, hb as _hb, roles, store, system as _system, worker
+from . import digest as _digest, hb as _hb, roles, store, system as _system, worker, wrapup
 
 STEPS = ("ideas", "build", "wait", "argue", "verdict", "read")
 ROLES3 = ("builder", "doubter", "defender")
@@ -71,6 +71,18 @@ def _set_status(mid, status):
     m["status"] = status
     store.save(m)
     store.event(mid, "status", "engine", status, for_workers=False)
+    _ended(mid, status)
+
+
+def _ended(mid, status):
+    """The wrap-up, for every status in DONE; it never throws (the vault is the owner's, not the mission's)."""
+    if status not in store.DONE:
+        return
+    try:
+        eng = Engine(mid)
+        wrapup.write(eng.m, eng.board())
+    except Exception as e:
+        store.event(mid, "chat", "engine", f"The wrap-up note failed: {type(e).__name__}: {e}", for_workers=False)
 
 
 def pause(mid):
@@ -167,6 +179,7 @@ class Engine:
             self.m["status"] = status
             self._save()
             store.event(self.mid, "status", "engine", status, for_workers=False)
+            _ended(self.mid, status)
 
     def _goto(self, step):
         if _asked(self.mid) == "stop":
