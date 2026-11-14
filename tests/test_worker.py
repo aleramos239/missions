@@ -104,7 +104,7 @@ def test_blindcheck_verdict():
     from missions import blindcheck
     tools = [f"mcp__homebase__t{i}" for i in range(9)]
     init = {"tools": tools, "mcp_servers": [{"name": "homebase", "status": "connected"}]}
-    t = worker.Turn(text="\n".join(tools) + "\n\n**3.** No. I see no CLAUDE.md.")
+    t = worker.Turn(text="\n".join(tools) + "\n\n**3.** I see no CLAUDE.md.\nNo")
     assert all(blindcheck.verdict(init, t).values())
     init["tools"] = tools + ["Bash"]
     assert not all(blindcheck.verdict(init, t).values())
