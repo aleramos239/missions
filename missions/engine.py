@@ -6,7 +6,7 @@ import asyncio
 import re
 import time
 
-from . import digest as _digest, hb as _hb, roles, store, worker
+from . import digest as _digest, hb as _hb, roles, store, system as _system, worker
 
 STEPS = ("ideas", "build", "wait", "argue", "verdict", "read")
 ROLES3 = ("builder", "doubter", "defender")
@@ -24,7 +24,7 @@ def _plain(text, cap=200):
 
 
 class _NoSystem:
-    """Task 8's hooks, as no-ops until system.py is wired in."""
+    """No-op system hooks, for tests."""
 
     def may_start_turn(self):
         return True, None
@@ -37,6 +37,9 @@ class _NoSystem:
 
     def limit_hit(self, m, tries_mission):
         return None
+
+    def usage(self):
+        return {}
 
     def awake(self, on):
         pass
@@ -116,17 +119,20 @@ def approve_read(mid, said) -> None:
 class Engine:
     def __init__(self, mid, *, hb=_hb, run_turn=worker.run_turn, system=None, clock=time.time, sleep=asyncio.sleep,
                  backoff=(30, 300)):
-        self.mid, self.hb, self.run_turn, self.system = mid, hb, run_turn, system or _NoSystem()
+        self.mid, self.hb, self.run_turn, self.system = mid, hb, run_turn, system or _system
         self.clock, self.sleep, self.backoff = clock, sleep, backoff
         self.m = store.load(mid)
         self._t = None
         self._digest = None
+        self._hold = False  # answer() holds saves so its stale snapshot never reaches the disk
 
     # ---- small helpers
 
     def _save(self):
+        if self._hold:
+            return
         now = self.clock()
-        if self._t is not None and self.m["status"] == "running":
+        if self._t is not None and self.m["status"] in _system.RUNNING:
             self.m["run_seconds"] += max(0, now - self._t)
         self._t = now
         store.save(self.m)
@@ -250,6 +256,8 @@ class Engine:
             t = await self.run_turn(self.mid, role, pr, model=team["model"], effort=team["effort"],
                                     session_id=session, **kw)
             self.system.note_rate(t.rate)
+            if self.m["usage_start"] is None and (w := self.system.usage().get("seven_day")):
+                self.m["usage_start"] = w["used"]
             self.m["cost_usd"] += t.cost_usd or 0
             if t.why == "plan":
                 await self._wait_plan(t.resets_at)
@@ -362,8 +370,9 @@ class Engine:
                 self._judge(f"{row['version']} is dropped: {why}.")
             else:
                 plan.append(row)
-        p["plan"], p["fixes"], p["plan_change"] = plan, None, None
+        p["plan"] = plan
         if plan:
+            p["fixes"] = p["plan_change"] = None
             m["empty_rounds"] = 0
             p["failed_rounds"] = 0
             await self._refresh_tries(plan[0]["family"])
@@ -378,6 +387,7 @@ class Engine:
                       for_workers=False)
             await self._nap(min(60 * k, 600))
             return
+        p["fixes"] = p["plan_change"] = None
         m["empty_rounds"] += 1
         self._save()
         store.event(self.mid, "step", "engine", "ideas: nothing left to build", for_workers=False)
@@ -596,16 +606,28 @@ class Engine:
     async def answer(self):
         """One turn right away for every text of the owner to one worker that no normal turn has shown yet."""
         p = self.m["pending"]
-        for e in store.events(self.mid):
-            if e["type"] == "chat" and e["who"] == "owner" and e["to"] in store.ROLES \
-                    and e["n"] not in p.setdefault("answered", []):
-                p["answered"].append(e["n"])
-                _, rep = await self._turn(e["to"], "owner", e["text"], exclude={e["n"]})
-                if rep and isinstance(rep.get("reply"), str):
-                    self._say(e["to"], rep["reply"])
-                    if e["to"] == "lead" and isinstance(rep.get("plan_change"), str):
-                        p["plan_change"] = rep["plan_change"]
-        self._save()
+        self._hold = True
+        done, change = [], None  # saved onto a fresh copy: a long turn must not overwrite approve_read or resume
+        try:
+            for e in store.events(self.mid):
+                if e["type"] == "chat" and e["who"] == "owner" and e["to"] in store.ROLES \
+                        and e["n"] not in p.setdefault("answered", []) and e["n"] not in done:
+                    done.append(e["n"])
+                    p["answered"].append(e["n"])  # claimed now, so a second pass does not repeat it
+                    _, rep = await self._turn(e["to"], "owner", e["text"], exclude={e["n"]})
+                    if rep and isinstance(rep.get("reply"), str):
+                        self._say(e["to"], rep["reply"])
+                        if e["to"] == "lead" and isinstance(rep.get("plan_change"), str):
+                            change = rep["plan_change"]
+        finally:
+            self._hold = False
+        m = store.load(self.mid)
+        pend = m["pending"]
+        pend["answered"] = pend.get("answered", []) + [n for n in done if n not in pend.get("answered", [])]
+        if change is not None:
+            pend["plan_change"] = change
+        m["cost_usd"], m["sessions"] = self.m["cost_usd"], {**m["sessions"], **self.m["sessions"]}
+        store.save(m)
 
 
 async def runner(*, until_idle=False, idle_s=2, **kw) -> None:

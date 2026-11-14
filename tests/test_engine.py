@@ -565,3 +565,31 @@ def test_an_answer_turns_plan_wait_leaves_a_paused_mission_paused(kit):
     run(kit.eng().answer())
     assert store.load(kit.mid)["status"] == "paused"
     assert any(t[:2] == ("lead", "owner") for t in kit.turns.log) and len([t for t in kit.turns.log if t[1] == "owner"]) == 2
+
+
+def test_an_approval_during_an_answer_turn_survives(kit):
+    m = store.load(kit.mid)
+    m["status"], m["pending"]["read_for"] = "waiting_owner", "v01"
+    store.save(m)
+    engine.owner_says(kit.mid, "lead", "think about 15m")
+
+    def approve(_):
+        engine.approve_read(kit.mid, "yes, read it")
+        return None  # the default owner reply
+    kit.turns.over[("lead", "owner")] = approve
+    run(kit.mk().answer())
+    m = store.load(kit.mid)
+    assert m["status"] == "running" and m["pending"]["read_ok"] == "yes, read it"
+    assert m["pending"]["answered"] and m["pending"]["plan_change"] == "use 15m"
+
+
+def test_a_failed_round_keeps_the_fixes_for_the_retry(kit):
+    m = store.load(kit.mid)
+    m["pending"]["fixes"] = [{"idea": "fix", "family": "fvg", "why": "w"}]
+    m["pending"]["plan_change"] = "use 15m"
+    store.save(m)
+    kit.turns.over[("lead", "ideas")] = [worker.Turn(why="crash"), worker.Turn(why="crash")]
+    eng = kit.mk()
+    run(eng._ideas())
+    p = store.load(kit.mid)["pending"]
+    assert p["failed_rounds"] == 1 and p["fixes"] and p["plan_change"] == "use 15m"
