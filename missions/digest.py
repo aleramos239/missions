@@ -26,20 +26,23 @@ def _name(line):
     return m.group(0) if m else ""
 
 
-def _safe(base, f):
-    p = base / f
-    if p.is_symlink():
-        return None
+def _safe(root, rel, f):
+    p = root
+    for part in (*Path(rel).parts, f):
+        p = p / part
+        if p.is_symlink():  # the vault root itself may be a link; nothing below it may
+            return None
     r = p.resolve()
-    return r if r.parent == base.resolve() else None
+    return r if r.is_relative_to(root.resolve() / rel) else None
 
 
 def digest() -> str:
     out = []
-    base = config.vault() / "30-Projects/Onyx-Trading"
+    root, rel = config.vault(), "30-Projects/Onyx-Trading"
+    base = root / rel
     for f in _FILES:
         try:
-            lines = (_safe(base, f) or Path("/nonexistent")).read_text().splitlines()
+            lines = (_safe(root, rel, f) or Path("/nonexistent")).read_text().splitlines()
         except OSError:
             continue
         for ln in lines:

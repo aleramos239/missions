@@ -43,3 +43,35 @@ def test_symlinked_note_refused(tmp_path, monkeypatch):
     (d / "dead-families.md").symlink_to(plant)
     t = digest.digest()
     assert "leak_strat" not in t and "77777" not in t and "No notes found" in t
+
+
+def _outside(tmp_path):
+    o = tmp_path / "outside/Onyx-Trading"
+    o.mkdir(parents=True)
+    (o / "dead-families.md").write_text("| leak_strat | alive | 77777 |\n")
+    return o
+
+
+def test_symlinked_project_folder_refused(tmp_path, monkeypatch):
+    o = _outside(tmp_path)
+    (tmp_path / "v/30-Projects").mkdir(parents=True)
+    (tmp_path / "v/30-Projects/Onyx-Trading").symlink_to(o)
+    monkeypatch.setenv("MISSIONS_VAULT", str(tmp_path / "v"))
+    t = digest.digest()
+    assert "leak" not in t and "No notes found" in t
+
+
+def test_symlinked_30_projects_refused(tmp_path, monkeypatch):
+    o = _outside(tmp_path)
+    (tmp_path / "v").mkdir()
+    (tmp_path / "v/30-Projects").symlink_to(o.parent)
+    monkeypatch.setenv("MISSIONS_VAULT", str(tmp_path / "v"))
+    t = digest.digest()
+    assert "leak" not in t and "No notes found" in t
+
+
+def test_symlinked_vault_root_works(tmp_path, monkeypatch):
+    d = _vault(tmp_path, monkeypatch, "| ok_one | dead |\n")
+    (tmp_path / "link").symlink_to(tmp_path / "v")
+    monkeypatch.setenv("MISSIONS_VAULT", str(tmp_path / "link"))
+    assert "ok_one: dead" in digest.digest()
