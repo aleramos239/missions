@@ -11,6 +11,17 @@ from dataclasses import dataclass, field
 from missions import config
 
 PREFIX = "mcp__homebase__"
+_live = set()  # pids (= process groups) of running turns, so a shutdown can kill them
+
+
+def kill_all():
+    """The app is stopping: kill every running turn's process group (claude and its MCP child)."""
+    for pid in list(_live):
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    _live.clear()
 
 
 @dataclass
@@ -48,6 +59,7 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
     except OSError as e:
         t.why = f"crash: {e}"
         return t
+    _live.add(p.pid)
     err = collections.deque(maxlen=4096)  # last ~4 KB of stderr: for the owner's log via `why`, never for a worker
 
     async def drain():
@@ -120,6 +132,7 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
                 result = ev
                 break
     finally:
+        _live.discard(p.pid)
         try:
             os.killpg(p.pid, signal.SIGKILL)  # the whole group, so the MCP child dies too
         except (ProcessLookupError, PermissionError):  # macOS: PermissionError on a zombie-only group

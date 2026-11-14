@@ -103,11 +103,23 @@ def limit_hit(m, tries_mission):
     return None
 
 
+def _is_caffeinate(pid) -> bool:
+    """Alive and really our caffeinate (a stale awake.pid may hold a reused pid)."""
+    try:
+        r = subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return "caffeinate" in r.stdout
+
+
 def awake(on: bool) -> None:
     pidf = config.home() / "awake.pid"
     try:
         pid = int(pidf.read_text())
     except (OSError, ValueError):
+        pid = None
+    if pid is not None and not _is_caffeinate(pid):
+        pidf.unlink(missing_ok=True)
         pid = None
     if on and pid is None:
         config.home().mkdir(parents=True, exist_ok=True)

@@ -278,9 +278,32 @@ def _paths(mid, name):
     return d / f"read_{_name(name)}.json", d / f"read_{name}.pid"
 
 
+def _lstart(pid):
+    """When the process started (ps lstart), or '' if it cannot be read."""
+    try:
+        return subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True,
+                              timeout=10).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def _ours(pid, pidf):
+    """Alive AND the same process the pid file was written for (a pid reused after a reboot is not). A file with no
+    start time (older, or written by hand) is trusted as it was."""
+    if not _alive(pid):
+        return False
+    if pid in _children:
+        return True
+    try:
+        _, _, started = pidf.read_text().partition(" ")
+    except OSError:
+        return False
+    return not started.strip() or _lstart(pid) == started.strip()
+
+
 def _pid(pidf):
     try:
-        return int(pidf.read_text() or 0)
+        return int((pidf.read_text() or "0").split()[0])
     except (OSError, ValueError):
         return 0
 
@@ -307,7 +330,7 @@ def start_read(mid, name, box, said=None):
         pidf.unlink(missing_ok=True)  # nothing started: the read can be tried again
         raise Down(f"the read could not be started ({e})") from e
     _children[p.pid] = p
-    pidf.write_text(str(p.pid))
+    pidf.write_text(f"{p.pid} {_lstart(p.pid)}".strip())
     return p.pid
 
 
@@ -329,6 +352,6 @@ def read_result(mid, name):
     pid = _pid(pidf)
     if pid == 0:  # claimed, pid not written yet; a claim that stays empty means the app died before the spawn
         return None if time.time() - pidf.stat().st_mtime < 10 else {"refused": STOPPED}
-    if _alive(pid):
+    if _ours(pid, pidf):
         return None
     return _answer(out) or {"refused": STOPPED}  # it may have finished between the read and the check

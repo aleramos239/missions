@@ -143,7 +143,7 @@ def test_two_starts_race_one_process(judge, monkeypatch):
     monkeypatch.setenv("FAKE_JUDGE_SLEEP", "1")
     spawned = []
     real = hb.subprocess.Popen
-    monkeypatch.setattr(hb.subprocess, "Popen", lambda *a, **k: spawned.append(1) or real(*a, **k))
+    monkeypatch.setattr(hb.subprocess, "Popen", lambda *a, **k: (spawned.append(1) if a[0][0] == '/bin/sh' else None) or real(*a, **k))
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(2) as ex:
         list(ex.map(lambda _: hb.start_read(1, "m1_v01", "12"), range(2)))

@@ -162,6 +162,7 @@ def test_pause_hunt_rewrites_only_the_pause_line(tmp_path, monkeypatch):
 
 
 def test_awake_starts_one_caffeinate_and_stops_it(monkeypatch):
+    monkeypatch.setattr(system, "_is_caffeinate", lambda pid: pid == 4242)
     with mock.patch("subprocess.Popen") as pop, mock.patch("os.kill") as kill:
         pop.return_value.pid = 4242
         system.awake(True)
@@ -172,3 +173,15 @@ def test_awake_starts_one_caffeinate_and_stops_it(monkeypatch):
         system.awake(False)
         kill.assert_called_once_with(4242, 15)
         assert not (config.home() / "awake.pid").exists()
+
+
+def test_awake_ignores_a_stale_pid_file(monkeypatch):
+    monkeypatch.setattr(system, "_is_caffeinate", lambda pid: False)
+    config.home().mkdir(parents=True, exist_ok=True)
+    (config.home() / "awake.pid").write_text("77")
+    with mock.patch("subprocess.Popen") as pop, mock.patch("os.kill") as kill:
+        pop.return_value.pid = 4243
+        system.awake(True)
+        assert pop.call_count == 1 and (config.home() / "awake.pid").read_text() == "4243"
+        system.awake(False)  # the pid is no longer ours: never kill it
+        kill.assert_not_called()

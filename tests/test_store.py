@@ -5,8 +5,7 @@ import pytest
 from missions import config, store
 
 TEAM = {r: {"model": "opus", "effort": "high"} for r in store.ROLES}
-LIMITS = {"until_goal": False, "tries": {"on": True, "n": 40}, "hours": {"on": True, "n": 8},
-          "usage": {"on": True, "pct": 40}}
+LIMITS = {"until_goal": False, "tries": {"n": 40}, "hours": {"n": 8}, "usage": {"pct": 40}}
 
 
 def mk(s="a goal", team=TEAM):

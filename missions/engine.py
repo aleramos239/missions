@@ -14,6 +14,8 @@ ROLES3 = ("builder", "doubter", "defender")
 WORKING = ("running", "waiting_plan", "waiting_homebase")
 JSON_RETRY = "Your last message had no json block I could read. End your message with the json block."
 JOB_POLL, READ_POLL, JOB_LIMIT = 30, 20, 90 * 60
+MAX_FAILED_ROUNDS = 6  # Lead plans that could not be made or checked, in a row: then the mission crashes
+NO_JOB_WAIT = 10 * 60  # a wf row with no job row yet: wait this long for the job before calling the version done
 READ_LIMIT, READ_SLOW = 6 * 3600, 300  # after READ_LIMIT s the read is polled every READ_SLOW s, with a line
 OWNER_KEYS = ("limits", "test_months", "team")
 _active = set()
@@ -125,9 +127,9 @@ def approve_read(mid, said) -> None:
     if m["status"] != "waiting_owner" or not m["pending"].get("read_for"):
         raise ValueError("no read waits for his yes")
     m["pending"]["read_ok"] = said.strip()
-    m["status"] = "running"
+    m["status"] = "queued" if any(o["id"] != mid and o["status"] in WORKING for o in store.missions()) else "running"
     store.save(m)
-    store.event(mid, "status", "engine", "running", for_workers=False)
+    store.event(mid, "status", "engine", m["status"], for_workers=False)
 
 
 class Engine:
@@ -202,13 +204,15 @@ class Engine:
             await self.sleep(min(seconds, 30))
             seconds -= 30
         self._check_stop()
+        if _asked(self.mid) == "pause":
+            raise _Done("paused")
 
     async def _h(self, name, *a):
         """A Homebase call that waits out an outage (capped backoff) and then goes on with the same step."""
         delay, prev = self.backoff[0], None
         while True:
             try:
-                r = getattr(self.hb, name)(*a)
+                r = await asyncio.to_thread(getattr(self.hb, name), *a)
             except _hb.Down as e:
                 if prev is None:
                     prev = self.m["status"]
@@ -273,7 +277,7 @@ class Engine:
         prev = self.m["status"]
         self._status("waiting_plan")
         self.system.alert(self.mid, "waiting_plan")
-        await self.system.wait_for_plan(resets_at, sleep=self.sleep)
+        await self.system.wait_for_plan(resets_at, sleep=self._nap)  # sliced: Pause and Stop count
         self._status(prev if prev in ("paused", "waiting_owner") else "running")
 
     async def _once(self, role, step, chat, ask, session, kw, digest=None):
@@ -388,7 +392,7 @@ class Engine:
         t, rep = await self._turn("lead", "ideas", "\n".join(ask), digest=self._digest_text())
         rows = [r for r in ((rep or {}).get("plan") or []) if isinstance(r, dict) and isinstance(r.get("idea"), str)
                 and isinstance(r.get("family"), str)][:3]
-        plan, unchecked = [], t is None
+        plan, unchecked = [], t is None or not rows  # no usable plan is a failed round, never an empty one
         for r in rows:
             p["vn"] = n = p.get("vn", max((int(v["version"][1:]) for v in m["versions"]), default=0)) + 1
             row = {"version": f"v{n:02d}", "name": roles.version_name(self.mid, n), "idea": r["idea"],
@@ -416,6 +420,10 @@ class Engine:
             p["failed_rounds"] = k = p.get("failed_rounds", 0) + 1
             m["round"] -= 1
             self._save()
+            if k >= MAX_FAILED_ROUNDS:  # a crash, not a stop: it holds under until_goal too
+                p["failed_rounds"] = 0
+                self._save()
+                raise RuntimeError(f"The Lead's plan failed {k} rounds in a row. Check the Lead and Homebase, then resume.")
             self._say("engine", "The Lead's plan could not be made or checked this round. Trying the round again.",
                       for_workers=False)
             await self._nap(min(60 * k, 600))
@@ -435,7 +443,7 @@ class Engine:
         if not (made and made.get("wf")):
             return False
         self.m["versions"].append({"name": row["name"], "version": row["version"], "round": self.m["round"],
-                                   "family": self.hb.family_of(row["name"]) or row["family"],
+                                   "family": await asyncio.to_thread(self.hb.family_of, row["name"]) or row["family"],
                                    "job_id": made.get("job_id") or builder_job, "state": "running",
                                    "since": self.clock(), "idea": row["idea"]})
         self._save()
@@ -471,9 +479,13 @@ class Engine:
             await self.answer()
             self._check_stop()
             for v in running:
-                if not v["job_id"]:
-                    v["state"] = "done"
-                    continue
+                if not v["job_id"]:  # a wf row without its job row yet: ask again, for a while
+                    made = await self._h("made", self.mid, v["name"])
+                    v["job_id"] = made and made.get("job_id")
+                    if not v["job_id"]:
+                        if self.clock() - v["since"] > NO_JOB_WAIT:
+                            v["state"] = "done"
+                        continue
                 try:
                     j = await self._h("job", v["job_id"])
                 except _hb.Refused as e:
@@ -493,7 +505,7 @@ class Engine:
                     store.event(self.mid, "progress", "engine", v["name"], data=j.get("progress"), for_workers=False)
             self._save()
             if self._round_versions("running"):
-                await self.sleep(JOB_POLL)
+                await self._nap(JOB_POLL)
         self._goto("argue")
 
     # ---- 4. argue
@@ -656,12 +668,12 @@ async def runner(*, until_idle=False, idle_s=2, **kw) -> None:
     while True:
         ms = store.missions()
         pick = next((m for m in ms if m["status"] in WORKING), None) \
-            or next(iter(sorted((m for m in ms if m["status"] == "queued"), key=lambda m: m["id"])), None)
+            or next(iter(sorted((m for m in ms if m["status"] in ("queued", "ready")), key=lambda m: m["id"])), None)
         if pick is None:
             if until_idle:
                 return
             await asyncio.sleep(idle_s)
             continue
-        if pick["status"] == "queued":
+        if pick["status"] in ("queued", "ready"):  # "ready" = approved, never started
             _set_status(pick["id"], "running")
         await Engine(pick["id"], **kw).run()

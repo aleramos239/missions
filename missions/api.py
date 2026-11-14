@@ -19,7 +19,6 @@ HOSTS = ("127.0.0.1", "localhost")
 ORIGINS = ("http://127.0.0.1:8860", "http://localhost:8860")
 WARN = "This looks like a test-month number. The team must never see one. Send anyway?"
 NUMBERISH = re.compile(r"\d\s*(?:%|\$|pts?\b|points?\b|trades?\b)|\$\s*\d", re.I)
-LIMITS = ("tries", "hours", "usage", "until_goal")
 _odds = {}  # (mid, name, box) -> {"done", "result"/"err"}: one computation at a time
 _odds_lock = threading.Lock()
 
@@ -143,6 +142,7 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         yield
         if t:
             t.cancel()
+        worker.kill_all()  # no claude or MCP process outlives the app
 
     app = FastAPI(lifespan=life)
 
@@ -280,8 +280,9 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         m = _mission(mid)
         if "test_months" in body and body["test_months"] not in ("team", "ask"):
             raise Bad("test_months is team or ask")
-        if "limits" in body and not (isinstance(body["limits"], dict) and set(body["limits"]) <= set(LIMITS)):
-            raise Bad(f"limits is an object with only {list(LIMITS)}")
+        if "limits" in body:
+            with bad():
+                store.check_limits(body["limits"])
         if "team" in body:
             t = body["team"]
             if not isinstance(t, dict) or set(t) != set(store.ROLES):
@@ -397,7 +398,9 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
 
     @app.post("/api/hunt")
     async def hunt(body: dict = Body(...)):
-        system.pause_hunt(bool(body["pause"]))
+        with bad():
+            on = bool(body["pause"])
+        system.pause_hunt(on)
         return {"hunt_paused": system.hunt_paused()}
 
     return Guard(app)

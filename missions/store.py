@@ -29,7 +29,26 @@ def events_path(mid):
     return mdir(mid) / "events.jsonl"
 
 
+LIMITS = ("tries", "hours", "usage", "until_goal")
+
+
+def check_limits(lim):
+    """tries: {"n": int > 0}; hours: {"n": number > 0}; usage: {"pct": number > 0}; until_goal: true or false. Anything else is a ValueError."""
+    if not isinstance(lim, dict) or set(lim) - set(LIMITS):
+        raise ValueError(f"limits is an object with only {list(LIMITS)}")
+    for k, v in lim.items():
+        if k == "until_goal":
+            ok = isinstance(v, bool)
+        else:
+            f = "pct" if k == "usage" else "n"
+            x = v.get(f) if isinstance(v, dict) and set(v) == {f} else None
+            ok = isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0 and (k != "tries" or isinstance(x, int))
+        if not ok:
+            raise ValueError(f"bad limit {k}: {v!r}")
+
+
 def new_mission(sentence: str, team: dict, limits: dict, test_months: str) -> dict:
+    check_limits(limits)
     if not isinstance(team, dict) or test_months not in ("team", "ask"):
         raise ValueError("bad team or test_months")
     for r in ROLES:
