@@ -6,10 +6,12 @@ import re
 import shlex
 import socket
 import subprocess
+import time
 
 from . import config, store
 
 OK_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
+_children = {}  # pid -> Popen of reads this process started
 BRIEF_KEYS = {"approved", "owner_said", "test_months", "goal"}
 STOPPED = "the read stopped; the owner has the details"
 
@@ -20,6 +22,17 @@ class Refused(Exception):
 
 class Down(Exception):
     pass
+
+
+class Slow(Down):
+    pass
+
+
+def _box(box):
+    b = str(box)
+    if not OK_NAME.match(b) or b.startswith("-"):
+        raise Refused(f"{box!r}: not a box")
+    return b
 
 
 def _name(name):
@@ -36,7 +49,7 @@ def door(*args, timeout=600):
     except (FileNotFoundError, PermissionError) as e:
         raise Down(f"the Judge's door is not there ({j})") from e
     except subprocess.TimeoutExpired as e:
-        raise Down(f"the Judge's door took more than {timeout} s") from e
+        raise Slow(f"the Judge's door took more than {timeout} s and was stopped") from e
     out = r.stdout.strip()
     try:
         data = json.loads(out)
@@ -61,7 +74,7 @@ def reach(mid, family):
 
 
 def gate(mid, name, box):
-    return door("gate", mid, name, box, timeout=1800)
+    return door("gate", mid, name, _box(box), timeout=1800)
 
 
 def table(mid, name):
@@ -69,11 +82,11 @@ def table(mid, name):
 
 
 def odds(mid, name, box):
-    return door("odds", mid, name, box, timeout=1800)
+    return door("odds", mid, name, _box(box), timeout=1800)
 
 
 def mc(mid, name, box):
-    return door("mc", mid, name, box)
+    return door("mc", mid, name, _box(box))
 
 
 # ---- the brief file and the mission's files in Homebase
@@ -127,9 +140,16 @@ def ledger(mid):
     return _lines(_hdir(mid) / "ledger.jsonl")
 
 
+def _job_json(job_id):
+    try:
+        return json.loads((config.ideas_root() / "_jobs" / _name(str(job_id)) / "job.json").read_text())
+    except (OSError, ValueError, Refused):
+        return {}
+
+
 def made(mid, name):
-    """The newest 'wf' row of that name and the job row Homebase wrote just before it (the connector records a call's job
-    before its wf row), else None."""
+    """The newest 'wf' row of that name and the job of it: the nearest job row before that wf row (the connector records a
+    call's job first) whose job.json says it is the wf run of this name; any other job row is skipped."""
     rows = ledger(mid)
     i = max((k for k, r in enumerate(rows) if r.get("kind") == "wf" and r.get("ref") == name), default=None)
     if i is None:
@@ -139,8 +159,10 @@ def made(mid, name):
         if r.get("kind") == "wf":
             break
         if r.get("kind") == "job":
-            job = r["ref"]
-            break
+            j = _job_json(r["ref"])
+            if j.get("command") == "wf run" and j.get("name") == name:
+                job = r["ref"]
+                break
     return {"wf": True, "job_id": job}
 
 
@@ -163,6 +185,8 @@ def job(job_id):
     except (OSError, ValueError):
         raise Refused(f"no job {job_id}") from None
     done = j.get("state") in ("done", "error")
+    if not done and j.get("pid") and not _alive(int(j["pid"])):  # no pid field: left as job.json says
+        return {"done": True, "ok": False, "said": "the job's process is gone", "progress": None}
     ok, said = False, j.get("progress") or ""
     if done:
         try:
@@ -216,10 +240,9 @@ def owner_refused(mid):
 
 
 def _alive(pid):
-    try:
-        os.waitpid(pid, os.WNOHANG)  # reap our own finished child, or it looks alive
-    except OSError:
-        pass
+    p = _children.get(pid)
+    if p is not None:
+        return p.poll() is None  # our own child: poll reaps it
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -234,21 +257,29 @@ def _paths(mid, name):
     return d / f"read_{_name(name)}.json", d / f"read_{name}.pid"
 
 
+def _pid(pidf):
+    try:
+        return int(pidf.read_text() or 0)
+    except (OSError, ValueError):
+        return 0
+
+
 def start_read(mid, name, box, said=None):
+    """One read of a version, ever: the pid file is claimed (O_EXCL) before anything spawns, and an existing claim or
+    result means start nothing (the version is spent)."""
     out, pidf = _paths(mid, name)
-    if pidf.exists():
-        try:
-            old = int(pidf.read_text())
-        except ValueError:
-            old = 0
-        if old and not out.exists() and _alive(old):
-            return old  # one read of a version at a time
-    cmd = f"{shlex.quote(str(config.judge()))} read {int(mid)} {shlex.quote(name)} {shlex.quote(str(box))}" \
+    box = _box(box)
+    try:
+        os.close(os.open(pidf, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except FileExistsError:
+        return _pid(pidf)
+    cmd = f"{shlex.quote(str(config.judge()))} read {int(mid)} {shlex.quote(name)} {shlex.quote(box)}" \
           + (f" --said {shlex.quote(said)}" if said else "")
     p = subprocess.Popen(["/bin/sh", "-c", f"{cmd} > {shlex.quote(str(out))}.tmp 2>/dev/null; "
                           f"mv {shlex.quote(str(out))}.tmp {shlex.quote(str(out))}"],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
+    _children[p.pid] = p
     pidf.write_text(str(p.pid))
     return p.pid
 
@@ -261,8 +292,9 @@ def read_result(mid, name):
         return {"refused": STOPPED}
     except OSError:
         pass
-    try:
-        pid = int(pidf.read_text())
-    except (OSError, ValueError):
+    if not pidf.exists():
         return None  # never started
+    pid = _pid(pidf)
+    if pid == 0:  # claimed, pid not written yet; a claim that stays empty means the app died before the spawn
+        return None if time.time() - pidf.stat().st_mtime < 10 else {"refused": STOPPED}
     return None if _alive(pid) else {"refused": STOPPED}

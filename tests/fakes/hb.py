@@ -1,20 +1,20 @@
 """FakeHB: the in-memory twin of missions.hb for the engine tests. A test fills the dicts; every call is logged."""
-from missions.hb import Down, Refused  # noqa: F401  (the engine catches these)
+from missions.hb import Down, Refused, Slow  # noqa: F401  (the engine catches these)
 
 
 class FakeHB:
-    Refused, Down = Refused, Down
+    Refused, Down, Slow = Refused, Down, Slow
 
     def __init__(self):
         self.calls = []
-        self.tables, self.gates, self.reads, self.jobs, self.reach_ = {}, {}, {}, {}, {}
+        self.tables, self.gates, self.reads, self.jobs = {}, {}, {}, {}
+        self.started = []
         self.tries_, self.odds_, self.mcs, self.families, self.made_ = {}, {}, {}, {}, {}
         self.briefs, self.ledgers, self.owner_files = {}, {}, {}
         self.accounts_ = []
         self.slots_ = {"cap": 4, "running": 0}
         self.health_ = {"chart_service": True, "door": True, "claude": "2.1.321"}
         self.reach = _Reach(self)  # fake.reach[family] is filled; hb.reach(mid, family) is called
-        self.reach_calls = self.reach
 
     def _get(self, d, key, call):
         self.calls.append(call)
@@ -90,6 +90,7 @@ class FakeHB:
 
     def start_read(self, mid, name, box, said=None):
         self.calls.append(("start_read", mid, name, box, said))
+        self.started.append((mid, name, box, said))
         return 4242
 
     def read_result(self, mid, name):
