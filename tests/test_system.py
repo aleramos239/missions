@@ -16,14 +16,41 @@ def test_a_window_at_091_blocks_a_turn_and_gives_its_reset():
     assert system.may_start_turn(now=6000) == (True, None)  # the reset passed: the figure is stale
 
 
-def test_a_rejected_window_blocks_and_a_low_one_does_not():
+def test_a_rejected_event_blocks_whatever_its_type_until_its_reset():
     assert system.may_start_turn() == (True, None)
-    system.note_rate(rate("seven_day", 0.2, 9e9))
-    assert system.may_start_turn()[0]
-    system.note_rate(rate("seven_day", 0.2, 9e9, status="rejected"))
-    assert system.may_start_turn(now=1) == (False, 9e9)
-    system.note_rate(None)
-    assert system.usage()["seven_day"]["used"] == 1.0
+    system.note_rate(rate("seven_day_opus", None, 5000, status="rejected"))
+    assert system.may_start_turn(now=1000) == (False, 5000)
+    assert system.may_start_turn(now=5001) == (True, None)
+
+
+def test_a_rejected_event_with_no_reset_expires_after_15_minutes():
+    system.note_rate({"status": "rejected"})
+    at = system.usage()["at"]
+    assert system.may_start_turn(now=at + 899)[0] is False
+    assert system.may_start_turn(now=at + 901) == (True, None)
+    system.note_rate(rate("five_hour", 0.95))  # a high window with no reset also expires
+    assert system.may_start_turn(now=system.usage()["at"] + 901)[0] is True
+
+
+def test_unified_windows_are_read_first_and_block_at_the_reserve():
+    system.note_rate({"status": "allowed", "unifiedWindows": {
+        "five_hour": {"utilization": 0.3, "resetsAt": 9000, "status": "allowed"},
+        "seven_day": {"utilization": 0.92, "resetsAt": 8000, "status": "allowed_warning"}}})
+    assert system.usage()["five_hour"]["used"] == 0.3
+    assert system.may_start_turn(now=1000) == (False, 8000)
+
+
+def test_an_event_with_no_utilization_anywhere_changes_nothing():
+    system.note_rate(rate("five_hour", 0.5, 9000))
+    system.note_rate({"status": "allowed", "resetsAt": 1, "unifiedWindows": {"five_hour": {"status": "allowed"}}})
+    system.note_rate({"status": "allowed", "rateLimitType": "overage", "utilization": 0.99})
+    assert system.usage()["five_hour"]["used"] == 0.5 and system.usage()["seven_day"] is None
+
+
+def test_top_level_figures_count_only_for_the_two_windows():
+    system.note_rate(rate("seven_day", 0.95, 7000))
+    assert system.usage()["seven_day"]["used"] == 0.95
+    assert system.may_start_turn(now=1)[1] == 7000
 
 
 def test_wait_for_plan_sleeps_to_the_reset_plus_60_or_900():
@@ -75,6 +102,28 @@ def test_run_seconds_does_not_grow_while_paused_or_waiting():
         t[0] += 10
         eng._save()
         assert (eng.m["run_seconds"] == 10) is grows, status
+
+
+def test_the_span_is_credited_to_the_status_last_saved():
+    from missions import engine
+    m = store.new_mission("x", {r: {"model": "sonnet", "effort": "low"} for r in store.ROLES}, {}, "team")
+    t = [0]
+    eng = engine.Engine(m["id"], clock=lambda: t[0])
+    eng._status("running")
+    t[0] = 100
+    d = store.load(m["id"])
+    d["status"] = "paused"  # paused from outside
+    store.save(d)
+    eng._save()
+    assert eng.m["run_seconds"] == 100 and eng.m["status"] == "paused"
+    t[0] = 200
+    eng._save()
+    assert eng.m["run_seconds"] == 100
+
+
+def test_pause_hunt_on_a_missing_note_does_not_raise(tmp_path, monkeypatch):
+    monkeypatch.setenv("MISSIONS_VAULT", str(tmp_path))
+    system.pause_hunt(True)
 
 
 def test_alert_text_is_the_id_and_a_fixed_phrase(monkeypatch):

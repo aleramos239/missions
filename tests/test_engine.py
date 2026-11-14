@@ -593,3 +593,17 @@ def test_a_failed_round_keeps_the_fixes_for_the_retry(kit):
     run(eng._ideas())
     p = store.load(kit.mid)["pending"]
     assert p["failed_rounds"] == 1 and p["fixes"] and p["plan_change"] == "use 15m"
+
+
+def test_usage_start_set_during_an_answer_turn_survives(kit):
+    class Sys(engine._NoSystem):
+        def usage(self):
+            return {"seven_day": {"used": 0.33, "resets_at": 1}}
+    m = store.load(kit.mid)
+    m["status"], m["pending"]["read_for"] = "waiting_owner", "v01"
+    store.save(m)
+    engine.owner_says(kit.mid, "lead", "hello")
+    kit.turns.over[("lead", "owner")] = lambda _: engine.approve_read(kit.mid, "yes") or None
+    run(kit.mk(system=Sys()).answer())
+    m = store.load(kit.mid)
+    assert m["usage_start"] == 0.33 and m["status"] == "running" and m["pending"]["read_ok"] == "yes"

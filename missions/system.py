@@ -30,18 +30,33 @@ def _load():
         return {}
 
 
+def _num(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool)
+
+
 def note_rate(rate) -> None:
-    """Keep the newest figure of each window the CLI reports (shortcut: needs the CLI's utilization field)."""
-    if not isinstance(rate, dict) or rate.get("rateLimitType") not in ("five_hour", "seven_day"):
+    """Keep the newest figure of each window. CLI shape: unifiedWindows{five_hour,seven_day}{utilization 0-1, resetsAt,
+    status}; top-level fields count only for those two types; any rejected event blocks until its resetsAt."""
+    if not isinstance(rate, dict):
         return
-    d = _load()
-    u = rate.get("utilization")
+    d, now, changed = _load(), time.time(), False
+    uw = rate.get("unifiedWindows") if isinstance(rate.get("unifiedWindows"), dict) else {}
+    for key in ("five_hour", "seven_day"):
+        w = uw.get(key) if isinstance(uw.get(key), dict) else None
+        if w is None and rate.get("rateLimitType") == key:
+            w = rate
+        if w is None:
+            continue
+        u = 1.0 if w.get("status") == "rejected" else w.get("utilization")
+        if _num(u):
+            d[key] = {"used": u, "resets_at": w.get("resetsAt"), "at": now}
+            changed = True
     if rate.get("status") == "rejected":
-        u = 1.0
-    if not isinstance(u, (int, float)):
+        d["rejected"] = {"resets_at": rate.get("resetsAt"), "at": now}
+        changed = True
+    if not changed:
         return
-    d[rate["rateLimitType"]] = {"used": u / 100 if u > 1 else u, "resets_at": rate.get("resetsAt")}
-    d["at"] = time.time()
+    d["at"] = now
     config.home().mkdir(parents=True, exist_ok=True)
     tmp = _path().with_suffix(".tmp")
     tmp.write_text(json.dumps(d))
@@ -53,11 +68,18 @@ def usage() -> dict:
     return {"five_hour": d.get("five_hour"), "seven_day": d.get("seven_day"), "at": d.get("at")}
 
 
+def _live(w, now):
+    """A figure still counts until its reset passes; with no reset known, for 15 minutes after it was seen."""
+    r = w.get("resets_at")
+    return r > now if r else now - w.get("at", 0) < UNKNOWN_WAIT
+
+
 def may_start_turn(now=None):
     now = time.time() if now is None else now
-    for w in (usage()["five_hour"], usage()["seven_day"]):
-        if w and w["used"] >= RESERVE and not (w["resets_at"] and w["resets_at"] <= now):  # a passed reset is stale
-            return False, w["resets_at"]
+    d = _load()
+    for w in (d.get("rejected"), d.get("five_hour"), d.get("seven_day")):
+        if w and (w.get("used", 1.0) >= RESERVE) and _live(w, now):
+            return False, w.get("resets_at")
     return True, None
 
 
@@ -124,4 +146,9 @@ def hunt_paused():
 
 def pause_hunt(on: bool) -> None:
     p = _steering()
-    p.write_text(re.sub(r"^PAUSE:.*$", f"PAUSE: {'yes' if on else 'no'}", p.read_text(), count=1, flags=re.M))
+    try:
+        txt = p.read_text()
+    except OSError as e:
+        log.warning("hunt steering note not readable: %s", e)
+        return
+    p.write_text(re.sub(r"^PAUSE:.*$", f"PAUSE: {'yes' if on else 'no'}", txt, count=1, flags=re.M))

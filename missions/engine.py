@@ -124,18 +124,31 @@ class Engine:
         self.m = store.load(mid)
         self._t = None
         self._digest = None
-        self._hold = False  # answer() holds saves so its stale snapshot never reaches the disk
+        self._look()
 
     # ---- small helpers
 
     def _save(self):
-        if self._hold:
-            return
         now = self.clock()
-        if self._t is not None and self.m["status"] in _system.RUNNING:
+        if self._t is not None and self._st in _system.RUNNING:  # the span belongs to the status last saved
             self.m["run_seconds"] += max(0, now - self._t)
         self._t = now
+        try:  # keep what the owner or the API changed on disk since this engine last saw it
+            disk = store.load(self.mid)
+        except (OSError, ValueError):
+            disk = None
+        if disk:
+            if disk["status"] != self._seen[0] and self.m["status"] == self._seen[0]:
+                self.m["status"] = disk["status"]
+            ok = disk["pending"].get("read_ok")
+            if ok != self._seen[1]:
+                self.m["pending"]["read_ok"] = ok
         store.save(self.m)
+        self._look()
+
+    def _look(self):
+        self._st = self.m["status"]
+        self._seen = (self.m["status"], self.m["pending"].get("read_ok"))
 
     def _say(self, who, text, to=None, for_workers=True, data=None):
         return store.event(self.mid, "chat", who, text, data=data, to=to, for_workers=for_workers)
@@ -289,6 +302,7 @@ class Engine:
         if self.mid in _active:
             return self.m["status"]
         self.m = store.load(self.mid)
+        self._look()
         if self.m["status"] in store.DONE:
             return self.m["status"]
         _active.add(self.mid)
@@ -606,28 +620,16 @@ class Engine:
     async def answer(self):
         """One turn right away for every text of the owner to one worker that no normal turn has shown yet."""
         p = self.m["pending"]
-        self._hold = True
-        done, change = [], None  # saved onto a fresh copy: a long turn must not overwrite approve_read or resume
-        try:
-            for e in store.events(self.mid):
-                if e["type"] == "chat" and e["who"] == "owner" and e["to"] in store.ROLES \
-                        and e["n"] not in p.setdefault("answered", []) and e["n"] not in done:
-                    done.append(e["n"])
-                    p["answered"].append(e["n"])  # claimed now, so a second pass does not repeat it
-                    _, rep = await self._turn(e["to"], "owner", e["text"], exclude={e["n"]})
-                    if rep and isinstance(rep.get("reply"), str):
-                        self._say(e["to"], rep["reply"])
-                        if e["to"] == "lead" and isinstance(rep.get("plan_change"), str):
-                            change = rep["plan_change"]
-        finally:
-            self._hold = False
-        m = store.load(self.mid)
-        pend = m["pending"]
-        pend["answered"] = pend.get("answered", []) + [n for n in done if n not in pend.get("answered", [])]
-        if change is not None:
-            pend["plan_change"] = change
-        m["cost_usd"], m["sessions"] = self.m["cost_usd"], {**m["sessions"], **self.m["sessions"]}
-        store.save(m)
+        for e in store.events(self.mid):
+            if e["type"] == "chat" and e["who"] == "owner" and e["to"] in store.ROLES \
+                    and e["n"] not in p.setdefault("answered", []):
+                p["answered"].append(e["n"])
+                _, rep = await self._turn(e["to"], "owner", e["text"], exclude={e["n"]})
+                if rep and isinstance(rep.get("reply"), str):
+                    self._say(e["to"], rep["reply"])
+                    if e["to"] == "lead" and isinstance(rep.get("plan_change"), str):
+                        p["plan_change"] = rep["plan_change"]
+        self._save()
 
 
 async def runner(*, until_idle=False, idle_s=2, **kw) -> None:
