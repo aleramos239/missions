@@ -607,3 +607,18 @@ def test_usage_start_set_during_an_answer_turn_survives(kit):
     run(kit.mk(system=Sys()).answer())
     m = store.load(kit.mid)
     assert m["usage_start"] == 0.33 and m["status"] == "running" and m["pending"]["read_ok"] == "yes"
+
+
+def test_the_owners_patch_survives_an_engine_save():
+    m = store.new_mission("s", TEAM, {"tries": {"n": 5}}, "team")
+    eng = engine.Engine(m["id"], hb=FakeHB())
+    d = store.load(m["id"])
+    d["limits"], d["test_months"], d["team"] = {"hours": {"n": 2}}, "ask", {**TEAM, "lead": {"model": "opus", "effort": "high"}}
+    store.save(d)
+    eng.m["round"] = 3
+    eng._save()
+    got = store.load(m["id"])
+    assert (got["limits"], got["test_months"], got["team"]["lead"]["model"], got["round"]) == \
+        ({"hours": {"n": 2}}, "ask", "opus", 3)
+    eng._save()  # a second save keeps it too
+    assert store.load(m["id"])["limits"] == {"hours": {"n": 2}}

@@ -3,6 +3,7 @@
 Blind: worker text is built from the brief, the vault digest, the door's table/gate/tries/reach (in-sample), the chat, and
 the read's one line {held, line, close}. Nothing here asks Homebase for the owner's files."""
 import asyncio
+import copy
 import re
 import time
 
@@ -14,6 +15,7 @@ WORKING = ("running", "waiting_plan", "waiting_homebase")
 JSON_RETRY = "Your last message had no json block I could read. End your message with the json block."
 JOB_POLL, READ_POLL, JOB_LIMIT = 30, 20, 90 * 60
 READ_LIMIT, READ_SLOW = 6 * 3600, 300  # after READ_LIMIT s the read is polled every READ_SLOW s, with a line
+OWNER_KEYS = ("limits", "test_months", "team")
 _active = set()
 _answers = {}  # mid -> the one answer task
 
@@ -143,12 +145,16 @@ class Engine:
             ok = disk["pending"].get("read_ok")
             if ok != self._seen[1]:
                 self.m["pending"]["read_ok"] = ok
+            for k in OWNER_KEYS:  # the owner's PATCH: the engine never changes these itself
+                if disk.get(k) != self._seen[2].get(k):
+                    self.m[k] = disk.get(k)
         store.save(self.m)
         self._look()
 
     def _look(self):
         self._st = self.m["status"]
-        self._seen = (self.m["status"], self.m["pending"].get("read_ok"))
+        self._seen = (self.m["status"], self.m["pending"].get("read_ok"),
+                      copy.deepcopy({k: self.m.get(k) for k in OWNER_KEYS}))
 
     def _say(self, who, text, to=None, for_workers=True, data=None):
         return store.event(self.mid, "chat", who, text, data=data, to=to, for_workers=for_workers)

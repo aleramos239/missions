@@ -55,6 +55,11 @@ class FakeHB:
         if mid in self.briefs:
             self.briefs[mid]["approved"] = False
 
+    def set_test_months(self, mid, tm):
+        self.calls.append(("set_test_months", mid, tm))
+        if mid in self.briefs:
+            self.briefs[mid]["test_months"] = tm
+
     def ledger(self, mid):
         self.calls.append(("ledger", mid))
         return self.ledgers.get(mid, [])

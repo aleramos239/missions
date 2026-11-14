@@ -120,6 +120,17 @@ def unapprove(mid):
     _write_json(p, b)
 
 
+def set_test_months(mid, tm):
+    """Rewrite test_months in the brief on file (no brief yet: nothing to rewrite)."""
+    p = _hdir(mid) / "brief.json"
+    try:
+        b = json.loads(p.read_text())
+    except (OSError, ValueError):
+        return
+    b["test_months"] = tm
+    _write_json(p, b)
+
+
 def _lines(p):
     out = []
     try:
