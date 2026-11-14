@@ -34,7 +34,6 @@ def test_approved_mission_starts_via_the_runner():
 def test_hb_calls_run_off_the_event_loop(kit):
     main = threading.get_ident()
     seen = []
-    orig = kit.fake.reach.__class__.__call__ if hasattr(kit.fake.reach.__class__, "__call__") else None
     real = kit.fake.family_of
     kit.fake.family_of = lambda n: seen.append(threading.get_ident()) or real(n)
     run(stopper(kit.eng(), kit).run())
