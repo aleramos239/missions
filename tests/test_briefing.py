@@ -129,3 +129,99 @@ def test_second_mission_queued(hb):
 def test_page_has_bans(hb):
     p = briefing.page(GOOD, hb.accounts_)
     assert p["bans"] == ["news"] and p["account"]["id"] == "lucid-live-50k"
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("goal", [{"kind": "eval", "rule": "lucid-live-50k"}, {"kind": "points"}])
+def test_non_finite_numbers(bad, goal):
+    acc = [{"id": "lucid-live-50k"}]
+    assert briefing.check({**GOOD, "goal": {**goal, "target": bad}}, acc)
+    assert briefing.check({**GOOD, "goal": {**goal, "target": 0.5}, "fewest_trades_week": bad}, acc)
+
+
+@pytest.mark.parametrize("rule", [["lucid-live-50k"], {"a": 1}, 5])
+def test_rule_must_be_str_for_eval(hb, rule):
+    assert briefing.check({**GOOD, "goal": {"kind": "eval", "target": 0.5, "rule": rule}}, hb.accounts_)
+    mid = mk()
+    bad = block({"brief": {**GOOD, "goal": {"kind": "eval", "target": 0.5, "rule": rule}}})
+    assert "error" in run(briefing.next_step(mid, run_turn=Lead(bad, bad), hb=hb))
+
+
+def test_rule_dropped_on_non_eval(hb):
+    mid = mk()
+    b = {**GOOD, "goal": {"kind": "points", "target": 100, "rule": ["x"]}}
+    r = run(briefing.next_step(mid, run_turn=Lead(block({"brief": b})), hb=hb))
+    assert r["brief"]["goal"] == {"kind": "points", "target": 100}
+
+
+def approved(hb):
+    mid = mk()
+    run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
+    briefing.approve(mid, "Yes", hb=hb)
+    return mid
+
+
+def test_repeat_approve_refused(hb):
+    mid = approved(hb)
+    n = len(hb.calls)
+    with pytest.raises(ValueError):
+        briefing.approve(mid, "Yes again", hb=hb)
+    assert not [c for c in hb.calls[n:] if c[0] == "write_brief"] and store.load(mid)["status"] == "ready"
+
+
+@pytest.mark.parametrize("status", ["running", "achieved", "paused"])
+def test_approve_only_while_briefing(hb, status):
+    mid = mk()
+    run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
+    m = store.load(mid)
+    m["status"] = status
+    store.save(m)
+    with pytest.raises(ValueError):
+        briefing.approve(mid, "Yes", hb=hb)
+    assert mid not in hb.briefs and store.load(mid)["status"] == status
+
+
+def test_ask_and_error_clear_the_brief(hb):
+    mid = mk()
+    run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
+    assert store.load(mid)["brief"]
+    run(briefing.next_step(mid, "change", run_turn=Lead(block({"ask": {"q": "?", "options": ["a", "b"]}})), hb=hb))
+    assert store.load(mid)["brief"] is None
+    with pytest.raises(ValueError):
+        briefing.approve(mid, "Yes", hb=hb)
+    run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
+
+    async def fail(*a, **k):
+        return worker.Turn(ok=False, why="plan")
+    assert run(briefing.next_step(mid, "again", run_turn=fail, hb=hb)) == {"error": "plan"}
+    assert store.load(mid)["brief"] is None
+
+
+def test_overlapping_next_steps_are_serialised(hb):
+    mid = mk()
+    q = block({"ask": {"q": "?", "options": ["a", "b"]}})
+    seen = []
+
+    async def slow(*a, **k):
+        seen.append(1)
+        await asyncio.sleep(0.01)
+        return worker.Turn(text=q, session_id="s", ok=True)
+
+    async def go():
+        return await asyncio.gather(*[briefing.next_step(mid, str(i), run_turn=slow, hb=hb) for i in range(8)])
+    run(go())
+    assert store.load(mid)["pending"]["brief"]["asked"] == 6  # 8 overlapping answers, never past 6
+
+
+def test_approve_during_a_turn_is_refused_and_status_kept(hb):
+    mid = mk()
+    m = store.load(mid)
+    m["brief"] = briefing._clean(GOOD)
+    store.save(m)
+
+    async def slow(*a, **k):
+        with pytest.raises(ValueError):
+            briefing.approve(mid, "Yes", hb=hb)
+        return worker.Turn(text=block({"ask": {"q": "?", "options": ["a", "b"]}}), ok=True)
+    run(briefing.next_step(mid, run_turn=slow, hb=hb))
+    assert store.load(mid)["status"] == "briefing" and mid not in hb.briefs

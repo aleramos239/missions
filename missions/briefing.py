@@ -1,4 +1,6 @@
 """The brief: the Lead asks the owner up to QUESTIONS_MAX things, the engine validates what he writes, the owner says yes."""
+import asyncio
+import math
 from datetime import date
 
 from . import digest as _digest, roles, store
@@ -11,7 +13,7 @@ BUSY = ("running", "paused", "waiting_plan", "waiting_owner")
 
 
 def _num(x):
-    return isinstance(x, (int, float)) and not isinstance(x, bool)
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
 
 
 def _strs(b, k):
@@ -37,7 +39,7 @@ def check(brief, accounts):
     if g["kind"] == "eval":
         if t > 1:
             return "an eval target is a share between 0 and 1 (0.5, not 50)"
-        if g.get("rule") not in {a.get("id") for a in accounts}:
+        if not isinstance(g.get("rule"), str) or g["rule"] not in {a.get("id") for a in accounts}:
             return f"goal.rule must be one of the open accounts: {[a.get('id') for a in accounts]}"
     if not isinstance(brief.get("idea"), str) or not brief["idea"].strip():
         return "idea is missing"
@@ -54,7 +56,7 @@ def check(brief, accounts):
 def _clean(b):
     g = b["goal"]
     goal = {"kind": g["kind"], "target": g["target"]}
-    if g.get("rule"):
+    if g["kind"] == "eval":
         goal["rule"] = g["rule"]
     return {"goal": goal, "idea": b["idea"].strip(), "fixed": b["fixed"], "may_change": b["may_change"],
             "fewest_trades_week": b["fewest_trades_week"], "notes": b["notes"]}
@@ -71,8 +73,24 @@ def _chat(mid):
     return "\n".join(f"{e['who']}: {e['text']}" for e in store.events(mid) if e["type"] == "chat" and e["text"])
 
 
+_locks = {}
+
+
+def _lock(mid):
+    return _locks.setdefault((asyncio.get_running_loop(), mid), asyncio.Lock())
+
+
 async def next_step(mid, answer=None, *, run_turn, hb):
+    async with _lock(mid):
+        return await _step(mid, answer, run_turn, hb)
+
+
+async def _step(mid, answer, run_turn, hb):
     m = store.load(mid)
+    if m["status"] != "briefing":
+        return {"error": f"the mission is {m['status']}, not briefing"}
+    m["brief"] = None  # a leftover brief is never approvable; saved now so an error leaves none
+    store.save(m)
     p = m["pending"].setdefault("brief", {"asked": 0})
     if answer:
         store.event(mid, "chat", "owner", answer)
@@ -88,9 +106,10 @@ async def next_step(mid, answer=None, *, run_turn, hb):
                            session_id=m["sessions"].get("lead"))
         m["sessions"]["lead"] = t.session_id or m["sessions"].get("lead")
         if not t.ok:
-            store.save(m)
+            _save(mid, m)
             return {"error": t.why or "the Lead's turn failed"}
         r = roles.reply(t.text) or {}
+        # brief first: a reply holding both is the Lead finishing, and an ask must not hide a finished brief
         if "brief" in r:
             why = check(r["brief"], accounts)
         elif "ask" in r and p["asked"] < QUESTIONS_MAX:
@@ -102,7 +121,7 @@ async def next_step(mid, answer=None, *, run_turn, hb):
         if attempt == 0:
             ask = RETRY.format(why=why)
             continue
-        store.save(m)
+        _save(mid, m)
         store.event(mid, "chat", "engine", f"The Lead's brief was refused twice: {why}", for_workers=False)
         return {"error": why}
     if "brief" in r:
@@ -114,14 +133,32 @@ async def next_step(mid, answer=None, *, run_turn, hb):
         a = r["ask"]
         store.event(mid, "chat", "lead", roles.say(t.text) or a["q"], data={"ask": a})
         out = {"ask": {"q": a["q"], "options": a["options"]}}
-    store.save(m)
+    _save(mid, m)
     return out
+
+
+def _save(mid, m):
+    """Save only what this step owns onto a fresh copy, so an overlapping change (status) is never overwritten."""
+    f = store.load(mid)
+    f["brief"], f["sessions"], f["pending"] = m["brief"], m["sessions"], m["pending"]
+    store.save(f)
+
+
+def _loop():
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
 
 
 def approve(mid, said, *, hb):
     if not isinstance(said, str) or not said.strip():
         raise ValueError("the owner's words are needed")
+    if _locks.get((_loop(), mid)) and _locks[(_loop(), mid)].locked():
+        raise ValueError("the Lead is still working")
     m = store.load(mid)
+    if m["status"] != "briefing":
+        raise ValueError(f"the mission is {m['status']}: it can only be approved while briefing")
     b = m["brief"]
     if not b or check(b, hb.accounts()):
         raise ValueError("there is no valid brief to approve")
