@@ -4,7 +4,7 @@ from pathlib import Path
 
 CHARGES = ("One year carries it", "Worse fills kill it", "It looks ahead", "One side carries it",
            "It is a dead family again")
-_BLOCK = re.compile(r"```json[ \t]*\n(.*?)\n[ \t]*```", re.S)
+_BLOCK = re.compile(r"```json[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.S | re.I)
 _IDEAS = ('{"ideas": [{"idea": "...", "family": "<a family blueprint_blocks lists>", "why": "..."}]} '
           "(at most 3)")
 _C = {
@@ -20,10 +20,13 @@ _C = {
                             '"fixes": [{"idea": "...", "family": "...", "why": "..."}]}'),
     ("lead", "verdict"): '{"to_owner": "<two plain sentences>", "next": "<what the next round tries>"}',
 }
+_C[("lead", "read")] = ('{"next": "stop" | "go_on", "why": "..."} '
+                        "(plain words first: say what the Judge's one-line answer means)")
 _OWNER = '{"reply": "..."}'
 _STEPS = {"brief": "Write the brief with the owner.", "ideas": "Step: ideas. Write your angles alone.",
           "build": "Step: build. Make the planned versions and start their tables.",
           "argue": "Step: argue.", "verdict": "Step: verdict. Sum up the round.",
+          "read": "Step: read. The Judge answered in one line (held, which line, or close). Say what comes next.",
           "owner": "The owner wrote to you. Answer him."}
 
 
@@ -34,6 +37,8 @@ def _read(name):
 def prompt(role, step, *, brief, board, chat, ask, digest=None) -> str:
     if role not in ("lead", "builder", "doubter", "defender") or step not in _STEPS:
         raise ValueError(f"bad role or step: {role} {step}")
+    if step == "read" and role != "lead":
+        raise ValueError(f"only the lead speaks at read: {role}")
     contract = _OWNER if step == "owner" else _C.get((role, step))
     if role == "lead" and step == "owner":
         contract += ' (the Lead may add "plan_change": "...")'

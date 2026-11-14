@@ -6,7 +6,7 @@ from missions import roles
 
 BLIND = "You will never be shown a test-month number. Do not ask for one and do not guess one."
 PAIRS = [(r, s) for r in ("lead", "builder", "doubter", "defender")
-         for s in ("brief", "ideas", "build", "argue", "verdict", "owner")]
+         for s in ("brief", "ideas", "build", "argue", "verdict", "owner")] + [("lead", "read")]
 
 
 def test_reply_last_block():
@@ -20,7 +20,7 @@ def test_reply_none():
     assert roles.reply("```json\n{broken\n```") is None
 
 
-def test_reply_ignores_quoted_earlier_block():
+def test_last_block_wins_over_an_earlier_quote():
     t = 'tool said:\n```json\n{"x": 1}\n```\nmy words'
     assert roles.reply(t) == {"x": 1}  # only a block is a reply; here the quote is the last one
     assert roles.reply('```json\n{"x": 1}\n```\nmy words\n```json\n{"ok": true}\n```') == {"ok": True}
@@ -41,6 +41,29 @@ def test_prompt(role, step):
         assert '"reply"' in p
 
 
+def test_reply_tag_variants():
+    assert roles.reply('x\n```JSON\n{"a": 1}\n```') == {"a": 1}
+    assert roles.reply('x\r\n```json\r\n{"a": 1}\r\n```\r\n') == {"a": 1}
+    assert roles.reply('x\n```json   \n{"a": 1}\n```') == {"a": 1}
+
+
+def test_read_and_wait():
+    p = roles.prompt("lead", "read", brief="b", board="", chat="", ask="held")
+    assert '"go_on"' in p and BLIND in p
+    for r in ("builder", "doubter", "defender"):
+        with pytest.raises(ValueError):
+            roles.prompt(r, "read", brief="", board="", chat="", ask="")
+    for r in ("lead", "builder", "doubter", "defender"):
+        with pytest.raises(ValueError):
+            roles.prompt(r, "wait", brief="", board="", chat="", ask="")
+
+
+def test_doubter_md_has_every_charge():
+    from pathlib import Path
+    t = (Path(roles.__file__).parent / "prompts/doubter.md").read_text()
+    assert all(c in t for c in roles.CHARGES)
+
+
 def test_planted_number_stays_out(tmp_path, monkeypatch):
     from missions import config, digest
     v = tmp_path / "vault"
@@ -51,7 +74,12 @@ def test_planted_number_stays_out(tmp_path, monkeypatch):
         f = config.hb_missions() / "7" / rel
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text("test months +9.87 pts 77777")
-    (v / "RECENT.md").write_text("alive 77777")
+    for f in (d / "sibling-notes.md", d / "findings-hub.md", v / "RECENT.md", v / "MEMORY.md",
+              d / "MEMORY.md"):
+        f.write_text("| leak_strat | alive | 77777 |\n- leak2: dead 77777\n")
     monkeypatch.setenv("MISSIONS_VAULT", str(v))
-    p = roles.prompt("lead", "verdict", brief="b", board="x", chat="c", ask="", digest=digest.digest())
-    assert "77777" not in p and "9.87" not in p and "x_strat" in p
+    dg = digest.digest()
+    p = roles.prompt("lead", "verdict", brief="b", board="x", chat="c", ask="", digest=dg)
+    for t in (dg, p):
+        assert "77777" not in t and "9.87" not in t and "leak" not in t
+    assert "x_strat" in p

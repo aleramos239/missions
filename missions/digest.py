@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from . import config
 
@@ -16,10 +17,21 @@ def _name(line):
     s = line.strip()
     if s.startswith("|"):
         s = s.strip("|").split("|")[0]
+    elif re.match(r"[-*] ", s):
+        s = s[2:]
     else:
-        s = re.sub(r"^[-*\d.\s]+", "", s)
+        return ""  # headings and prose never count
     s = re.sub(r"[\[\]`*]", "", s).strip()
-    return re.split(r"[\s:|(]", s, 1)[0].strip("-—") if s else ""
+    m = re.match(r"[A-Za-z][\w.\-]*", s)
+    return m.group(0) if m else ""
+
+
+def _safe(base, f):
+    p = base / f
+    if p.is_symlink():
+        return None
+    r = p.resolve()
+    return r if r.parent == base.resolve() else None
 
 
 def digest() -> str:
@@ -27,7 +39,7 @@ def digest() -> str:
     base = config.vault() / "30-Projects/Onyx-Trading"
     for f in _FILES:
         try:
-            lines = (base / f).read_text().splitlines()
+            lines = (_safe(base, f) or Path("/nonexistent")).read_text().splitlines()
         except OSError:
             continue
         for ln in lines:
