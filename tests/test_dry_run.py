@@ -54,6 +54,7 @@ def test_a_planted_edge_clears_in_round_three_and_one_read_holds(kit):
     assert m["status"] == "achieved" and m["round"] == 3 and m["reads"] == 1
     assert [s[1] for s in kit.fake.started] == [f"m{kit.mid}_v03"] and m["result"]["version"] == "v03"
     from missions import config
+    assert any((config.vault() / "30-Projects/Onyx-Trading/Missions").glob("*.md"))
     assert (config.vault() / "RECENT.md").read_text().count(f"Mission {kit.mid} ") == 1
 
 
@@ -71,4 +72,5 @@ def test_a_near_copy_both_versions_freeze_and_the_mission_goes_on(kit):
     assert run(eng.run()) == "stopped"
     m = store.load(kit.mid)
     assert [v["state"] for v in m["versions"][:2]] == ["frozen", "frozen"] and m["reads"] == 2
+    assert [x[1] for x in kit.fake.started] == [f"m{kit.mid}_v01", f"m{kit.mid}_v02"]
     assert m["versions"][1]["heard"]["line"] == "under the bar" and m["status"] != "achieved"

@@ -14,12 +14,18 @@ if [ "${1:-}" = "remove" ]; then
   exit 0
 fi
 
-[ -x "$REPO/.venv/bin/python" ] || {
+if [ ! -x "$REPO/.venv/bin/python" ]; then
+  python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' || { echo "Python 3.11 or newer is needed (python3 is older)" >&2; exit 1; }
   python3 -m venv "$REPO/.venv"
-  "$REPO/.venv/bin/pip" install -q -r "$REPO/requirements.txt"
-}
+fi
+# always: a re-run repairs a half-installed venv and picks up new requirements
+"$REPO/.venv/bin/pip" install -q -r "$REPO/requirements.txt"
 mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.missions"
-sed -e "s|__REPO__|$REPO|g" -e "s|__HOME__|$HOME|g" "$REPO/deploy/com.ramosquant.missions.plist.template" > "$PLIST"
+"$REPO/.venv/bin/python" "$REPO/deploy/fill.py" "$REPO/deploy/com.ramosquant.missions.plist.template" "$PLIST" "$REPO" "$HOME"
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
+for _ in $(seq 10); do  # bootout is asynchronous: wait until the job is gone
+  launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break
+  sleep 0.5
+done
+launchctl bootstrap "gui/$(id -u)" "$PLIST" || { sleep 2; launchctl bootstrap "gui/$(id -u)" "$PLIST"; }
 echo "installed: http://127.0.0.1:8860"

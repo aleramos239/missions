@@ -11,7 +11,7 @@ deploy/install.sh          # builds .venv if missing, installs the launchd job, 
 deploy/install.sh remove   # undoes it
 ```
 
-Then open http://127.0.0.1:8860. The job restarts by itself (`KeepAlive`). Homebase must be running for missions to test.
+Then open http://127.0.0.1:8860. launchd restarts the job if it exits (`KeepAlive`, 10 s apart), and starts it at login. Homebase must be running for missions to test. The job's PATH is `/opt/homebrew/bin:/usr/local/bin:~/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin`; if `claude` is somewhere else, set `"claude"` to its full path in `~/.missions/settings.json` (the key `config.claude_bin` reads).
 
 ## Where its files are
 
