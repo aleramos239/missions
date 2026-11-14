@@ -6,7 +6,7 @@ from . import digest as _digest, roles, store
 QUESTIONS_MAX = 6
 KINDS = ("eval", "points", "net")
 RETRY = "Your last answer was refused: {why}. Fix it and answer again."
-NOW = "You have asked enough. Write the brief now (the {\"brief\": {...}} block), no more questions."
+NOW = "You have asked enough: write the brief now (the {\"brief\": {...}} block), no more questions."
 BUSY = ("running", "paused", "waiting_plan", "waiting_owner")
 
 
