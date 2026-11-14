@@ -1,4 +1,4 @@
-import { esc, money, pct, pts, rr, dec, MINUS } from "./fmt.js";
+import { esc, money, pct, pts, rr, dec, plain, MINUS } from "./fmt.js";
 import { api } from "./net.js";
 import { numRows, mcRows, yearRows, settings, MC_CAP } from "./best.js";
 import { title, sec, mount, mine, bestOf, shared } from "./ui.js";
