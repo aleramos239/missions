@@ -1,0 +1,52 @@
+{
+ "workers": [
+  {
+   "role": "lead",
+   "state": "wait",
+   "since": "2026-11-14T10:00:00+00:00"
+  },
+  {
+   "role": "builder",
+   "state": "wait",
+   "since": "2026-11-14T10:00:00+00:00"
+  },
+  {
+   "role": "doubter",
+   "state": "wait",
+   "since": "2026-11-14T10:00:00+00:00"
+  },
+  {
+   "role": "defender",
+   "state": "wait",
+   "since": "2026-11-14T10:00:00+00:00"
+  }
+ ],
+ "jobs": [
+  {
+   "name": "demo_v07",
+   "progress": [
+    12,
+    40
+   ]
+  }
+ ],
+ "slots": {
+  "cap": 12,
+  "running": 6
+ },
+ "usage": {
+  "five_hour": {
+   "used": 0.62,
+   "resets_at": null,
+   "at": 0
+  },
+  "seven_day": {
+   "used": 0.31,
+   "resets_at": null,
+   "at": 0
+  },
+  "at": 0
+ },
+ "cost_usd": 0.0,
+ "run_seconds": 4200
+}

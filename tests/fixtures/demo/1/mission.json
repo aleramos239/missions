@@ -1,152 +1,443 @@
 {
- "id": 1,
- "title": "Demo straddle",
- "sentence": "Demo: pass a made-up eval half the time.",
- "created": "2026-01-01T09:00:00+00:00",
- "status": "running",
- "team": {
-  "lead": {
-   "model": "opus",
-   "effort": "high"
+  "id": 1,
+  "title": "Demo straddle",
+  "sentence": "Demo: pass a made-up eval half the time.",
+  "created": "2026-01-01T09:00:00+00:00",
+  "status": "running",
+  "team": {
+    "lead": {
+      "model": "opus",
+      "effort": "high"
+    },
+    "builder": {
+      "model": "fable",
+      "effort": "high"
+    },
+    "doubter": {
+      "model": "sonnet",
+      "effort": "high"
+    },
+    "defender": {
+      "model": "opus",
+      "effort": "high"
+    }
   },
-  "builder": {
-   "model": "fable",
-   "effort": "high"
+  "limits": {
+    "tries": {
+      "n": 40
+    }
   },
-  "doubter": {
-   "model": "sonnet",
-   "effort": "high"
+  "test_months": "team",
+  "brief": {
+    "goal": {
+      "kind": "eval",
+      "target": 0.5,
+      "rule": "apex_50k_legacy"
+    },
+    "idea": "Demo: a made-up 9:30 straddle on NQ.",
+    "fixed": [
+      "NQ only",
+      "9:30 ET entry"
+    ],
+    "may_change": [
+      "distance of the orders",
+      "stop and target"
+    ],
+    "fewest_trades_week": 2,
+    "notes": "Every number in this folder is fake."
   },
-  "defender": {
-   "model": "opus",
-   "effort": "high"
-  }
- },
- "limits": {
-  "tries": {
-   "n": 40
-  }
- },
- "test_months": "team",
- "brief": {
-  "goal": {
-   "kind": "eval",
-   "target": 0.5,
-   "rule": "apex_50k_legacy"
-  },
-  "idea": "Demo: a made-up 9:30 straddle on NQ.",
-  "fixed": [
-   "NQ only",
-   "9:30 ET entry"
+  "round": 2,
+  "step": "wait",
+  "sessions": {},
+  "versions": [
+    {
+      "name": "demo_v01",
+      "version": "v01",
+      "state": "done",
+      "round": 1,
+      "box_label": "20 \u00b7 #14",
+      "job_id": null,
+      "gate": {
+        "goal": {
+          "value": 0.22
+        },
+        "lines": [
+          {
+            "line": "boxes",
+            "ok": true,
+            "said": "31 of 40 boxes made money in-sample (need 60%): the average of the boxes, not the best"
+          },
+          {
+            "line": "trades",
+            "ok": true,
+            "said": "897 in-sample trades (need 200+)"
+          },
+          {
+            "line": "luck",
+            "ok": false,
+            "said": "t 3.1 in-sample (need 3.5 after 7 tries), net 85,220"
+          },
+          {
+            "line": "years",
+            "ok": true,
+            "said": "5 of 6 years green, best year 44% of the net (need 67% green, no year over 50%)"
+          },
+          {
+            "line": "worse fills",
+            "ok": true,
+            "said": "net 24,310 with worse fills (need above 0)"
+          }
+        ],
+        "charges": [
+          {
+            "charge": "One year carries it",
+            "held": true,
+            "why": "No year over half the net; 5 of 6 years green"
+          },
+          {
+            "charge": "Worse fills kill it",
+            "held": false,
+            "why": "1 tick worse each side: net -1,240"
+          },
+          {
+            "charge": "It looks ahead",
+            "held": true,
+            "why": "The code check passed; future bars changed, past trades the same"
+          },
+          {
+            "charge": "One side carries it",
+            "held": true,
+            "why": "Long +46,870 and short +38,350 after costs"
+          },
+          {
+            "charge": "It is a dead family again",
+            "held": true,
+            "why": "demo is not on the dead list"
+          }
+        ],
+        "tries": 7
+      },
+      "box": 54
+    },
+    {
+      "name": "demo_v02",
+      "version": "v02",
+      "state": "done",
+      "round": 1,
+      "box_label": "30 \u00b7 #9",
+      "job_id": null,
+      "gate": {
+        "goal": {
+          "value": 0.31
+        },
+        "lines": [
+          {
+            "line": "boxes",
+            "ok": true,
+            "said": "31 of 40 boxes made money in-sample (need 60%): the average of the boxes, not the best"
+          },
+          {
+            "line": "trades",
+            "ok": true,
+            "said": "897 in-sample trades (need 200+)"
+          },
+          {
+            "line": "luck",
+            "ok": false,
+            "said": "t 3.1 in-sample (need 3.5 after 7 tries), net 85,220"
+          },
+          {
+            "line": "years",
+            "ok": true,
+            "said": "5 of 6 years green, best year 44% of the net (need 67% green, no year over 50%)"
+          },
+          {
+            "line": "worse fills",
+            "ok": true,
+            "said": "net 24,310 with worse fills (need above 0)"
+          }
+        ],
+        "charges": [
+          {
+            "charge": "One year carries it",
+            "held": true,
+            "why": "No year over half the net; 5 of 6 years green"
+          },
+          {
+            "charge": "Worse fills kill it",
+            "held": false,
+            "why": "1 tick worse each side: net -1,240"
+          },
+          {
+            "charge": "It looks ahead",
+            "held": true,
+            "why": "The code check passed; future bars changed, past trades the same"
+          },
+          {
+            "charge": "One side carries it",
+            "held": true,
+            "why": "Long +46,870 and short +38,350 after costs"
+          },
+          {
+            "charge": "It is a dead family again",
+            "held": true,
+            "why": "demo is not on the dead list"
+          }
+        ],
+        "tries": 7
+      },
+      "box": 89
+    },
+    {
+      "name": "demo_v03",
+      "version": "v03",
+      "state": "done",
+      "round": 2,
+      "box_label": "20 \u00b7 #8",
+      "job_id": null,
+      "gate": {
+        "goal": {
+          "value": 0.27
+        },
+        "lines": [
+          {
+            "line": "boxes",
+            "ok": true,
+            "said": "31 of 40 boxes made money in-sample (need 60%): the average of the boxes, not the best"
+          },
+          {
+            "line": "trades",
+            "ok": true,
+            "said": "897 in-sample trades (need 200+)"
+          },
+          {
+            "line": "luck",
+            "ok": false,
+            "said": "t 3.1 in-sample (need 3.5 after 7 tries), net 85,220"
+          },
+          {
+            "line": "years",
+            "ok": true,
+            "said": "5 of 6 years green, best year 44% of the net (need 67% green, no year over 50%)"
+          },
+          {
+            "line": "worse fills",
+            "ok": true,
+            "said": "net 24,310 with worse fills (need above 0)"
+          }
+        ],
+        "charges": [
+          {
+            "charge": "One year carries it",
+            "held": true,
+            "why": "No year over half the net; 5 of 6 years green"
+          },
+          {
+            "charge": "Worse fills kill it",
+            "held": false,
+            "why": "1 tick worse each side: net -1,240"
+          },
+          {
+            "charge": "It looks ahead",
+            "held": true,
+            "why": "The code check passed; future bars changed, past trades the same"
+          },
+          {
+            "charge": "One side carries it",
+            "held": true,
+            "why": "Long +46,870 and short +38,350 after costs"
+          },
+          {
+            "charge": "It is a dead family again",
+            "held": true,
+            "why": "demo is not on the dead list"
+          }
+        ],
+        "tries": 7
+      },
+      "box": 48
+    },
+    {
+      "name": "demo_v04",
+      "version": "v04",
+      "state": "done",
+      "round": 2,
+      "box_label": "30 \u00b7 #14",
+      "job_id": null,
+      "gate": {
+        "goal": {
+          "value": 0.38
+        },
+        "lines": [
+          {
+            "line": "boxes",
+            "ok": true,
+            "said": "31 of 40 boxes made money in-sample (need 60%): the average of the boxes, not the best"
+          },
+          {
+            "line": "trades",
+            "ok": true,
+            "said": "897 in-sample trades (need 200+)"
+          },
+          {
+            "line": "luck",
+            "ok": false,
+            "said": "t 3.1 in-sample (need 3.5 after 7 tries), net 85,220"
+          },
+          {
+            "line": "years",
+            "ok": true,
+            "said": "5 of 6 years green, best year 44% of the net (need 67% green, no year over 50%)"
+          },
+          {
+            "line": "worse fills",
+            "ok": false,
+            "said": "net -1,240 with worse fills (need above 0)"
+          }
+        ],
+        "charges": [
+          {
+            "charge": "One year carries it",
+            "held": true,
+            "why": "No year over half the net; 5 of 6 years green"
+          },
+          {
+            "charge": "Worse fills kill it",
+            "held": false,
+            "why": "1 tick worse each side: net -1,240"
+          },
+          {
+            "charge": "It looks ahead",
+            "held": true,
+            "why": "The code check passed; future bars changed, past trades the same"
+          },
+          {
+            "charge": "One side carries it",
+            "held": true,
+            "why": "Long +46,870 and short +38,350 after costs"
+          },
+          {
+            "charge": "It is a dead family again",
+            "held": true,
+            "why": "demo is not on the dead list"
+          }
+        ],
+        "tries": 7
+      },
+      "box": 94
+    },
+    {
+      "name": "demo_v05",
+      "version": "v05",
+      "state": "frozen",
+      "round": 2,
+      "job_id": null,
+      "gate": {
+        "goal": {
+          "value": 0.35
+        },
+        "lines": [
+          {
+            "line": "boxes",
+            "ok": true,
+            "said": "31 of 40 boxes made money in-sample (need 60%): the average of the boxes, not the best"
+          },
+          {
+            "line": "trades",
+            "ok": true,
+            "said": "897 in-sample trades (need 200+)"
+          },
+          {
+            "line": "luck",
+            "ok": false,
+            "said": "t 3.1 in-sample (need 3.5 after 7 tries), net 85,220"
+          },
+          {
+            "line": "years",
+            "ok": true,
+            "said": "5 of 6 years green, best year 44% of the net (need 67% green, no year over 50%)"
+          },
+          {
+            "line": "worse fills",
+            "ok": true,
+            "said": "net 24,310 with worse fills (need above 0)"
+          }
+        ],
+        "charges": [
+          {
+            "charge": "One year carries it",
+            "held": true,
+            "why": "No year over half the net; 5 of 6 years green"
+          },
+          {
+            "charge": "Worse fills kill it",
+            "held": false,
+            "why": "1 tick worse each side: net -1,240"
+          },
+          {
+            "charge": "It looks ahead",
+            "held": true,
+            "why": "The code check passed; future bars changed, past trades the same"
+          },
+          {
+            "charge": "One side carries it",
+            "held": true,
+            "why": "Long +46,870 and short +38,350 after costs"
+          },
+          {
+            "charge": "It is a dead family again",
+            "held": true,
+            "why": "demo is not on the dead list"
+          }
+        ],
+        "tries": 7
+      },
+      "box_label": "20 \u00b7 #13",
+      "box": 53,
+      "heard": {
+        "held": false,
+        "line": "under the bar",
+        "close": false
+      }
+    },
+    {
+      "name": "demo_v06",
+      "version": "v06",
+      "state": "dropped",
+      "round": 2,
+      "job_id": null,
+      "gate": null,
+      "box_label": null,
+      "box": null,
+      "why": "loses with worse fills"
+    },
+    {
+      "name": "demo_v07",
+      "version": "v07",
+      "state": "running",
+      "round": 2,
+      "job_id": "j7",
+      "gate": null,
+      "progress": [
+        12,
+        40
+      ],
+      "box_label": null,
+      "box": null
+    }
   ],
-  "may_change": [
-   "distance of the orders",
-   "stop and target"
-  ],
-  "fewest_trades_week": 2,
-  "notes": "Every number in this folder is fake."
- },
- "round": 2,
- "step": "build",
- "sessions": {},
- "versions": [
-  {
-   "name": "demo_v01",
-   "version": "v01",
-   "state": "done",
-   "round": 1,
-   "box_label": "20 \u00b7 #14",
-   "job_id": null,
-   "gate": {
-    "goal": {
-     "value": 0.22
-    },
-    "lines": [
-     {
-      "line": "luck",
-      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
-      "ok": false
-     }
-    ],
-    "charges": []
-   }
+  "pending": {
+    "tries": {
+      "mission": 4,
+      "family_on_file": 0,
+      "total": 4,
+      "needed_t": 3.5
+    }
   },
-  {
-   "name": "demo_v02",
-   "version": "v02",
-   "state": "done",
-   "round": 1,
-   "box_label": "32 \u00b7 #9",
-   "job_id": null,
-   "gate": {
-    "goal": {
-     "value": 0.31
-    },
-    "lines": [
-     {
-      "line": "luck",
-      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
-      "ok": false
-     }
-    ],
-    "charges": []
-   }
-  },
-  {
-   "name": "demo_v03",
-   "version": "v03",
-   "state": "done",
-   "round": 2,
-   "box_label": "20 \u00b7 #22",
-   "job_id": null,
-   "gate": {
-    "goal": {
-     "value": 0.27
-    },
-    "lines": [
-     {
-      "line": "luck",
-      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
-      "ok": false
-     }
-    ],
-    "charges": []
-   }
-  },
-  {
-   "name": "demo_v04",
-   "version": "v04",
-   "state": "done",
-   "round": 2,
-   "box_label": "40 \u00b7 #14",
-   "job_id": null,
-   "gate": {
-    "goal": {
-     "value": 0.38
-    },
-    "lines": [
-     {
-      "line": "luck",
-      "said": "t 3.1 in-sample (need 3.5 after 7 tries)",
-      "ok": false
-     }
-    ],
-    "charges": []
-   }
-  }
- ],
- "pending": {
-  "tries": {
-   "mission": 4,
-   "family_on_file": 0,
-   "total": 4,
-   "needed_t": 3.5
-  }
- },
- "empty_rounds": 0,
- "run_seconds": 4200,
- "usage_start": null,
- "cost_usd": 0.0,
- "reads": 0,
- "result": null
+  "empty_rounds": 0,
+  "run_seconds": 4200,
+  "usage_start": 0.22,
+  "cost_usd": 0.0,
+  "reads": 1,
+  "result": null
 }

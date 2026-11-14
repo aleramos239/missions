@@ -42,4 +42,20 @@ def test_demo_only_when_exactly_one(monkeypatch):
             monkeypatch.setenv("MISSIONS_DEMO", v)
         assert (api.build().app.__class__.__name__ == "FastAPI") is True
         routes = {r.path for r in api.build().app.routes}
-        assert ("/api/connections" in routes and "/api/hunt" not in routes) is on, v
+        assert ("/api/connections" in routes and "/api/missions/{mid}/progress" not in routes) is on, v
+
+
+def test_demo_result_pages_have_data():
+    t = call("GET", "/api/missions/1/tested").json()
+    assert {v["state"] for v in t} >= {"frozen", "dropped", "running", "done"}
+    tab = call("GET", "/api/missions/1/table?name=demo_v04").json()
+    assert tab["cells"] == 40 and tab["pick"] and any(r["net"] < 0 for r in tab["rows"])
+    assert call("GET", "/api/missions/1/table?name=demo_v03").json()["cells"] == 20
+    b = call("GET", f"/api/missions/1/box?name=demo_v04&box={tab['pick']}").json()
+    assert b["row"]["box"] == tab["pick"] and b["mc"]["worst_drawdown"]
+    assert len(call("GET", f"/api/missions/1/odds?name=demo_v04&box={tab['pick']}").json()) >= 4
+    lk = call("GET", "/api/missions/1/luck?name=demo_v05").json()
+    assert lk["heard"]["line"] == "under the bar" and lk["yours"]["net"] < 0 and len(lk["gate"]["charges"]) == 5
+    assert call("GET", "/api/missions/1/running").json()["slots"]["cap"] == 12
+    assert call("GET", "/api/missions/1/refused").json()
+    assert call("GET", "/api/missions/1/table?name=../x").status_code == 404

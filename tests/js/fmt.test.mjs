@@ -40,3 +40,12 @@ test("missing and zero values", () => {
   assert.equal(f.pts(0), "0.0");
   assert.equal(f.pts(-0.04), "0.0");
 });
+
+test("dec keeps its sign, hm reads hours and minutes", () => {
+  assert.equal(f.dec(-0.456, 2), "−0.46");
+  assert.equal(f.dec(1.2, 2), "+1.20");
+  assert.equal(f.dec(0, 2), "0.00");
+  assert.equal(f.dec(null), "—");
+  assert.equal(f.hm(4200), "1 h 10 min");
+  assert.equal(f.hm(600), "10 min");
+});

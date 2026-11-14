@@ -1,4 +1,4 @@
-import { statusWord, esc } from "./fmt.js";
+import { statusWord } from "./fmt.js";
 import { goalText } from "./panel.js";
 import * as sse from "./sse.js";
 import * as side from "./side.js";
@@ -6,6 +6,16 @@ import * as panel from "./panel.js";
 import * as nw from "./new.js";
 import * as chat from "./chat.js";
 import * as mic from "./mic.js";
+import { api } from "./net.js";
+import running from "./running.js";
+import progress from "./progress.js";
+import best from "./best.js";
+import heat from "./heat.js";
+import evalpass from "./evalpass.js";
+import tested from "./tested.js";
+import luck from "./luck.js";
+import conn from "./conn.js";
+import home from "./home.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const H = document.documentElement;
@@ -14,13 +24,6 @@ const S = { list: [], id: null, page: "new", m: null, events: [], open: new Set(
 const NARROW = 1000; // under this the right panel folds away so the three columns fit
 let closeStream = null, timer = null, firstPaint = true;
 
-export async function api(path, o = {}) {
-  const r = await fetch(path, { method: o.method || "GET", headers: o.body ? { "content-type": "application/json" } : {},
-    body: o.body ? JSON.stringify(o.body) : undefined });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || j.detail || `${r.status}`);
-  return j;
-}
 const go = (h) => { if (location.hash === h) route(); else location.hash = h; };
 const refreshList = async () => { S.list = await api("/api/missions"); paintSide(); };
 const paintSide = () => side.render($("#sideMissions"), S.list, S);
@@ -28,7 +31,7 @@ const paintSide = () => side.render($("#sideMissions"), S.list, S);
 function parse() {
   const p = location.hash.replace(/^#\/?/, "").split("/");
   if (p[0] === "m" && /^\d+$/.test(p[1])) return { id: +p[1], page: p[2] || "chat" };
-  return { id: null, page: p[0] === "conn" ? "conn" : "new" };
+  return { id: null, page: p[0] === "conn" || p[0] === "home" ? p[0] : "new" };
 }
 
 let seq = 0;
@@ -51,7 +54,8 @@ async function route() {
     closeStream = sse.open(id, events.length ? events[events.length - 1].n : 0, onEvent);
   }
   paint();
-  if (S.page === "conn") conn();
+  if (!S.id && (S.page === "conn" || S.page === "home")) show(S.page === "conn" ? conn : home, $(S.page === "conn" ? "#connBody" : "#homeBody"));
+  else if (view() === "other") showPage(true);
   $(".app-main").scrollTop = 0;
 }
 
@@ -61,6 +65,18 @@ function onEvent(e) {
   S.events.push(e);
   paint(false);
   if (e.type !== "chat" || e.who === "lead" || e.who === "judge") reload(true);
+  const pg = PAGE[S.page];
+  if (view() === "other" && pg && pg.on.includes(e.type)) showPage();
+}
+
+// the result pages: each is { on: event types it redraws for, render(mission, el) }
+const PAGE = { run: running, prog: progress, best, heat, pass: evalpass, tested, luck };
+const show = (pg, el, m = null) => { el.dataset.pg = S.page; return pg.render(m, el); };
+function showPage(fresh = false) {
+  const pg = PAGE[S.page], el = $("#v-other");
+  if (!pg || !S.m) return;
+  if (fresh || el.dataset.pg !== S.page) el.innerHTML = "";
+  show(pg, el, S.m);
 }
 
 // reload(true): fetch the mission and the sidebar again; reload(false): just repaint
@@ -76,6 +92,7 @@ export function reload(fetchAgain = true) {
       S.m = m; S.list = list;
       if (m.status === "briefing" && S.page === "chat") S.page = "chat";
       paint(false);
+      if (view() === "other") showPage();
     } catch (_) { /* the next event asks again */ }
   }, 250);
 }
@@ -92,30 +109,16 @@ function paint(scroll = true) {
   const v = view();
   document.querySelectorAll(".view").forEach((s) => (s.hidden = s.id !== "v-" + v));
   const m = S.id && S.m;
-  $("#tbTitle").textContent = m ? m.title : S.page === "conn" ? "Connections" : "New mission";
-  $("#tbSub").textContent = m ? `${statusWord(m)} · goal ${goalText(m.board.goal)}` : S.page === "conn" ? "Claude and the Lab" : "Nothing runs yet";
+  $("#tbTitle").textContent = m ? m.title : S.page === "conn" ? "Connections" : S.page === "home" ? "Missions" : "New mission";
+  $("#tbSub").textContent = m ? `${statusWord(m)} · goal ${goalText(m.board.goal)}` : S.page === "conn" ? "Claude and the Lab" : S.page === "home" ? "Every mission" : "Nothing runs yet";
   panel.toolbar(m || null);
   H.classList.toggle("hb-insp-off", !m || H.dataset.inspShut === "1" || window.innerWidth < NARROW);
   if (!m) { ["pMission", "pNow", "pBrief"].forEach((i) => ($("#" + i).innerHTML = "")); return; }
   panel.render(m);
   if (v === "chat") chat.renderChat(S);
   else if (v === "brief") chat.renderBrief(S, api);
-  else $("#otherTitle").innerHTML = `${(side.PAGES.find((p) => p[0] === S.page) || [, S.page])[1]}.<br><span>${esc(m.title)}</span>`;
   const last = $(v === "brief" ? "#briefFeed .feed-row:last-child" : "#feed .feed-row:last-child");
   if (last && (scroll || firstPaint)) { last.scrollIntoView({ block: "nearest" }); firstPaint = false; }
-}
-
-async function conn() {
-  const rows = $("#connRows");
-  try {
-    const c = await api("/api/connections"), h = c.health || {};
-    const row = (ok, nm, sub, val) => `<div class="acct tall"><span class="mx-mark ${ok ? "ok" : "no"}" aria-label="${ok ? "OK" : "Not working"}"></span><span class="grow"><span class="nm">${nm}</span><span class="sub">${sub}</span></span><span class="kvi">${val}</span></div>`;
-    rows.innerHTML = row(!!h.claude, "Claude CLI", "on this Mac · your Claude login · no API key", h.claude ? "Found" : "Not found")
-      + row(!!h.door, "The Judge's door", "fixed code that reads the Lab for the team", h.door ? "Ready" : "Missing")
-      + row(!!h.chart_service, "Homebase Lab", "the tester the team uses · this Mac", h.chart_service ? "Connected" : "Not answering")
-      + row(c.hunt_paused !== false, "The hunt loop", "paused while a mission runs", c.hunt_paused === null ? "Unknown" : c.hunt_paused ? "Paused" : "Running");
-    $("#labPill").querySelector(".hb-m-long").textContent = h.chart_service ? "Lab connected" : "Lab not answering";
-  } catch (e) { rows.innerHTML = `<div class="mx-err">${esc(e.message)}</div>`; }
 }
 
 // the toolbar

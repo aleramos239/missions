@@ -42,6 +42,7 @@
 <div class="frame">
 <aside class="side hb-side" id="side" aria-label="Missions navigation">
   <button class="nav mx-i-new" data-i data-v="new" aria-current="false"><span>New mission</span><span></span></button>
+  <button class="nav mx-i-chat" data-i data-v="home" aria-current="false"><span>All missions</span><span></span></button>
   <button class="nav mx-i-link" data-i data-v="conn" aria-current="false"><span>Connections</span><span></span></button>
   <div id="sideMissions"></div>
 </aside>
@@ -100,14 +101,15 @@
     </form>
   </section>
 
-  <section class="view" id="v-other" hidden>
-    <h1 class="day-title" id="otherTitle"></h1>
-    <div class="mcap">This page is not built yet.</div>
+  <section class="view" id="v-other" hidden></section>
+
+  <section class="view" id="v-home" hidden>
+    <div id="homeBody"></div>
   </section>
 
   <section class="view" id="v-conn" hidden>
     <h1 class="day-title">Connections.<br><span>Missions is its own app on this Mac. It reaches Homebase only through the Lab connector.</span></h1>
-    <div class="sec"><h2>Claude and the Lab</h2><div class="agroup" id="connRows"></div></div>
+    <div id="connBody"></div>
   </section>
 
 </div>

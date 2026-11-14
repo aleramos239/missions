@@ -1,0 +1,108 @@
+{
+ "mission": 1,
+ "name": "demo_v05",
+ "box": 53,
+ "who": "mission:1",
+ "read_number": 1,
+ "bar": 0,
+ "trades": 280,
+ "net": -10640,
+ "win_rate": 0.499,
+ "breakeven": 0.518,
+ "points_over": -1.9,
+ "goal": {
+  "kind": "eval",
+  "target": 0.5,
+  "value": 0.21,
+  "met": false
+ },
+ "blocks": [
+  {
+   "month": "m0",
+   "net": 900
+  },
+  {
+   "month": "m1",
+   "net": 900
+  },
+  {
+   "month": "m2",
+   "net": 900
+  },
+  {
+   "month": "m3",
+   "net": 900
+  },
+  {
+   "month": "m4",
+   "net": 900
+  },
+  {
+   "month": "m5",
+   "net": 900
+  },
+  {
+   "month": "m6",
+   "net": 900
+  },
+  {
+   "month": "m7",
+   "net": -900
+  },
+  {
+   "month": "m8",
+   "net": -900
+  },
+  {
+   "month": "m9",
+   "net": -900
+  },
+  {
+   "month": "m10",
+   "net": -900
+  },
+  {
+   "month": "m11",
+   "net": -900
+  },
+  {
+   "month": "m12",
+   "net": -900
+  },
+  {
+   "month": "m13",
+   "net": -900
+  },
+  {
+   "month": "m14",
+   "net": -900
+  },
+  {
+   "month": "m15",
+   "net": -900
+  },
+  {
+   "month": "m16",
+   "net": -900
+  },
+  {
+   "month": "m17",
+   "net": -900
+  },
+  {
+   "month": "m18",
+   "net": -900
+  }
+ ],
+ "verdict": {
+  "held": false,
+  "line": "under the bar",
+  "close": false
+ },
+ "in_sample": {
+  "trades": 897,
+  "net": 70000,
+  "t_stat": 3.1,
+  "win_rate": 0.456
+ }
+}

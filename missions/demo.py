@@ -70,9 +70,60 @@ def make_app():
         b = _read(mid, "mission.json")["brief"]
         return {**b, "account": ACCOUNT, "bans": ACCOUNT["bans"]} if b else {"brief": None}
 
+    def version(mid, name):  # only the mission's own version names reach a fixture file
+        m = _read(mid, "mission.json")
+        v = next((x for x in m["versions"] if name in (x["name"], x["version"])), None)
+        if v is None:
+            raise api.NotFound(f"no version {name}")
+        return m, v
+
+    @app.get("/api/missions/{mid}/running")
+    async def running(mid: int):
+        return _read(mid, "running.json", {"workers": [], "jobs": [], "slots": {"cap": 12, "running": 0}, "usage": {"five_hour": None, "seven_day": None, "at": None}, "cost_usd": 0.0, "run_seconds": 0})
+
+    @app.get("/api/missions/{mid}/refused")
+    async def refused(mid: int):
+        return _read(mid, "refused.json", [])
+
+    @app.get("/api/missions/{mid}/tested")
+    async def tested(mid: int):
+        m, board = _read(mid, "mission.json"), {v["version"]: v for v in _read(mid, "board.json")["versions"]}
+        return [{"name": v["name"], "version": v["version"], "state": v["state"], "frozen": v["state"] == "frozen",
+                 "box": board[v["version"]]["box"], "goal_value": board[v["version"]]["goal_value"], "why": v.get("why")} for v in m["versions"]]
+
+    @app.get("/api/missions/{mid}/table")
+    async def table(mid: int, name: str):
+        version(mid, name)
+        return _read(mid, f"tables/{name}.json")
+
+    @app.get("/api/missions/{mid}/box")
+    async def box(mid: int, name: str, box: str):
+        version(mid, name)
+        t = _read(mid, f"tables/{name}.json")
+        return {"row": next((r for r in t["rows"] if str(r["box"]) == box), None), "mc": _read(mid, "mc.json")}
+
+    @app.get("/api/missions/{mid}/odds")
+    async def odds(mid: int, name: str, box: str):
+        version(mid, name)
+        return _read(mid, "odds.json")
+
+    @app.get("/api/missions/{mid}/luck")
+    async def luck(mid: int, name: str):
+        m, v = version(mid, name)
+        return {"gate": v.get("gate"), "tries": m["pending"].get("tries"), "heard": v.get("heard"), "yours": _read(mid, f"yours/{v['name']}.json", {}) or None}
+
     @app.get("/api/connections")
     async def connections():
-        return {"health": {"chart_service": True, "door": True, "claude": "demo"}, "settings": {}, "hunt_paused": None}
+        return {"health": {"chart_service": True, "door": True, "claude": "2.1.321"},
+                "settings": {"claude": "/Applications/Claude.app/claude", "ntfy_topic": "missions-demo"}, "hunt_paused": False}
+
+    @app.post("/api/connections")
+    async def set_connections(body: dict = Body(...)):
+        return {k: body[k] for k in ("claude", "ntfy_topic") if k in body}
+
+    @app.post("/api/hunt")
+    async def hunt(body: dict = Body(...)):
+        return {"hunt_paused": bool(body["pause"])}
 
     # ---- writes: canned
     @app.post("/api/missions")

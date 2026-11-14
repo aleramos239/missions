@@ -5,7 +5,7 @@ const LIVE = ["running", "waiting_plan", "waiting_homebase"];
 export const STEP_WORD = { ideas: "Ideas", build: "Build and run", wait: "Waiting", argue: "Argue", verdict: "Verdict", read: "Test months" };
 const SHOW_RUN = [...LIVE, "paused", "waiting_owner"];
 // who does what at each fixed step
-const DOING = { ideas: { lead: "planning the round" }, build: { builder: "building" }, wait: { builder: "waiting on a test" },
+export const DOING = { ideas: { lead: "planning the round" }, build: { builder: "building" }, wait: { builder: "waiting on a test" },
   argue: { doubter: "reading the results", defender: "arguing for it" }, verdict: { lead: "writing the verdict" },
   read: { lead: "waiting on the Judge" } };
 

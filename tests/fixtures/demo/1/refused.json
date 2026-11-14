@@ -1,0 +1,16 @@
+[
+ {
+  "at": "2026-11-14T10:41:00+00:00",
+  "tool": "walkforward",
+  "args": {
+   "name": "demo_v05"
+  },
+  "why": "demo_v05: already read on its test months: frozen"
+ },
+ {
+  "at": "2026-11-14T09:58:00+00:00",
+  "tool": "heatmap",
+  "args": {},
+  "why": "a heat map needs the owner's word in the brief"
+ }
+]

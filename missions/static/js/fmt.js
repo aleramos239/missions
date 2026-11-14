@@ -1,5 +1,5 @@
 // Plain-word formatting. The minus is U+2212; a sign is never dropped.
-const MINUS = "−";
+export const MINUS = "−";
 const ok = (v) => typeof v === "number" && Number.isFinite(v);
 const DASH = "—";
 // a value that rounds to zero carries no sign; a missing or non-finite value is a dash
@@ -20,3 +20,6 @@ const WORDS = { queued: "Next", ready: "Next", achieved: "Reached", limit: "Not 
   waiting_plan: "Waiting for the plan", waiting_owner: "Needs you" };
 export const statusWord = (m) => WORDS[m.status] || (m.round ? `Round ${m.round}` : "Next");
 export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+// a signed number with d decimals (Sharpe as Homebase gives it); an hours-and-minutes length of time
+export const dec = (v, d = 2) => (ok(v) ? `${sign(v, d)}${num(v, d)}` : DASH);
+export const hm = (s) => (ok(s) ? (s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`) : DASH);
