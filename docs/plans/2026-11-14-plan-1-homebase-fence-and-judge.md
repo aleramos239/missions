@@ -25,6 +25,18 @@ code in the repo does (a signature, a field name, a helper that already exists),
 code to fit, keep the behaviour the tests pin, and say what you changed in your report. Never weaken a test to make it
 pass; a test that cannot pass as written is reported, not edited away.
 
+**Changes made while building (2026-11-14; the repo code is the truth, these are the rulings behind it):**
+1. Draft tools in mission mode (`write_strategy`, `read_strategy`, `delete_draft`, `set_group`, `backtest`, `get_run`, `trades`,
+   `montecarlo`, `prop_eval`, `day_types`, `cancel`, `list_runs`) are off unless the brief says `"drafts": true` (default false):
+   a draft can read the repo's test-month stores and every raw tape. `missions.brief` carries the bool `drafts`.
+2. The brief is re-read on every call (an edit or an un-approved brief takes effect at once). A card or settings that names a
+   market other than NQ is refused. A run or job id that is not a string is refused and logged.
+3. A mission's try count starts from the family's tries on file **without the mission's own keys** (`m<id>_...`): its own tables
+   and reads are in the same ledger and are counted once, as mission tries.
+4. The read freezes the version BEFORE it opens the test months (they stay open for minutes and the status / heat-map views would
+   show the record) and un-freezes it only if the read is refused before its claim: Task 1 gets `missions.unfreeze`.
+5. Task 7's smoke test lists 9 tools (drafts off); a brief with `"drafts": true` lists 21.
+
 ## Global Constraints
 
 - Work only in the worktree `~/ramos-quant-homebase/.worktrees/missions-fence` (branch `feat/missions-fence`, off `main`). Never edit, commit or switch branch in the main checkout `~/ramos-quant-homebase` (it is on another branch with other people's uncommitted edits). A commit on `main` ships to the VPS by itself: this branch is merged only on the owner's word. Never push.

@@ -86,8 +86,16 @@ toolkit ... it lets me know and i confirm to commit into the app and repo".
 | Cost | A promote step before the Desk | Agents editing a checkout other sessions use | Not reusable |
 
 **When the shelf comes** (owner, 2026-11-14: "Right after"): the first build has the team, the Judge and the fence,
-and workers build with draft strategies, which are already locked down. The shelf is the next part of the same plan,
+and workers build from the blueprint blocks. **Draft strategies are off in v1** (found while building plan 1, 2026-11-14):
+a draft's sandbox (`homebase/backtest/draft.sb`) blocks the network and `~/.homebase`, but it can still read the whole repo,
+which holds the test-month stores of every version already read, and the raw tapes of every month. So a worker's draft
+could read what the Judge hides. A mission's brief turns drafts on with `"drafts": true` (default off), and a tighter
+mission sandbox (no `research/`, in-sample tapes only) comes with the shelf. The shelf is the next part of the same plan,
 because a worker's code must run in a sandbox before it can be tested safely (section 7).
+
+**Workers get no file access of their own** (same finding): the owner's test-month numbers sit in
+`~/.homebase/missions/<id>/reads/<name>.json`, and the repo holds the test-month stores. Plan 2 gives workers only the mission
+connector and the `missions/judge` door, never a general file-read tool.
 
 ## 5. How a mission runs
 
