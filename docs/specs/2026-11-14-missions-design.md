@@ -146,7 +146,7 @@ ledger), so starting a new mission on a worn idea does not reset its luck bar. T
 
 | Kind | Measured as |
 |---|---|
-| Eval pass | The tester's prop sim for one firm and eval from the rule sets: the chance of passing within 10 trading weekdays (his 2026-10-03 bar), on the "live is worse" row, at one fixed risk = drawdown ÷ 2.5. Bust % is shown beside it |
+| Eval pass | The tester's prop sim (`homebase/backtest/propsim.evaluate`) for one of his accounts: the chance of passing within 10 trading weekdays (his 2026-10-03 bar), at one fixed risk = drawdown ÷ 2.5 (capped at the account's contract limit), on the box re-run with worse fills (line 5's fills). Bust % is shown beside it; on an intraday-trail account (Apex Legacy) the careful pass % too |
 | Points over | His hunt score (`blueprint/hunt.py`): full-target % minus the % needed, at $1,000 a trade |
 | Net | Net after costs, with the six lines |
 
@@ -156,6 +156,19 @@ The code has two gaps here, both new Judge functions: (1) eval odds per box on i
 `blueprint/propodds.py` runs only on test-month trades after the read, and picks the best of several sizes, which is a
 hidden extra try; the Judge uses one fixed risk); (2) points over on the test months (today `hunt.score` reads only the
 in-sample store).
+
+**His accounts (added 2026-11-14, with build plan 1).** The goal names one of the 18 accounts he built simulators for
+on 2026-11-14 (main d6f3fe2f, `homebase/backtest/propsim/rules/*@2026-11-14.json`): Lucid Maxx 25K/50K, Lucid live
+25K/50K, Topstep 50K (+DLL), Apex Legacy 50K/100K/300K, MFFU Builder 100K, MFFU Rapid 25K-150K, MFFU Rapid EOD 25K/50K
+(+DLL). An older file of the same account resolves to its newest. Lucid Flex and Lucid Pro are closed ("I got moved to
+live and I can't use the flex or the pro accounts anymore"). `propodds` reads only 6 of the 18 (it refuses the intraday
+trail, two-step evals, funded blocks and payout day counts), and the stores keep no trade highs, so the Judge re-runs
+the one picked box with full trades on the same 3:1 days, checks it gives the store's trades and net (else the number
+is withheld), and hands it to the tester's own prop sim, which reads all 18. "Live is worse" is that re-run with line
+5's worse fills, because the sim's own haircut skips the intraday trail. Each firm's bans are shown on the brief and on
+Eval pass, never checked by code: Apex bans bots on every account; Topstep bans orders from a VPS (the Chicago Desk);
+MFFU bans news straddles; Lucid allows no new eval while he is live. Every file is `confirmed: false` (read off the
+firms' pages), and the page says so.
 
 **6. When it stops.**
 - **Achieved:** the picked box meets the goal in-sample, passes the six lines, and still meets the goal on its test months
@@ -293,7 +306,7 @@ Each mission has its own pages:
 | Progress | Distance to the goal, round by round |
 | Best so far | The best version's numbers, per year then combined, and the plain Monte Carlo |
 | Heat map | The 40 boxes for one main-setting value at a time (a switch picks the value; at 3 values there are 120 boxes), shaded green/red by net. A box is named by both, e.g. "20 · #14", so a number is never ambiguous. A switch picks the number shown (net, points over, full target, PF, Sharpe). Click a box for its numbers and its Monte Carlo |
-| Eval pass | Pick a firm and an eval from the tester's rule sets (`homebase/backtest/propsim/rules/*.json`; only the newest rule set of each). It shows pass % "within 10 trading days, live is worse", bust %, days to pass, the rules, and every eval for the clicked box, best first |
+| Eval pass | Pick one of his accounts (the 18 of 2026-11-14, newest file of each; Lucid Flex/Pro closed). It shows pass % "within 10 trading days, live is worse", bust %, days to pass, the careful pass % on Apex Legacy, the contract-size flag, the firm's bans, "rules read off the firm's page, not confirmed", the rules, and every account for the clicked box, best first |
 | Tested | Every version, with frozen marks |
 | Real or luck | The six lines, the try count and the luck bar in plain words ("needs t 3.5 after 7 tries; has 3.1"); what the team heard about the test months beside what he sees |
 
