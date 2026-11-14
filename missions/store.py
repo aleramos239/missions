@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from . import config
 
 ROLES = ("lead", "builder", "doubter", "defender")
-STATUS = ("briefing", "ready", "queued", "running", "paused", "waiting_plan", "waiting_owner",
+STATUS = ("briefing", "ready", "queued", "running", "paused", "waiting_plan", "waiting_homebase", "waiting_owner",
           "achieved", "limit", "out_of_reach", "stopped", "crashed")
 DONE = ("achieved", "limit", "out_of_reach", "stopped")
 MODELS = ("fable", "opus", "sonnet", "haiku")

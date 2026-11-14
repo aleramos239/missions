@@ -225,3 +225,14 @@ def test_approve_during_a_turn_is_refused_and_status_kept(hb):
         return worker.Turn(text=block({"ask": {"q": "?", "options": ["a", "b"]}}), ok=True)
     run(briefing.next_step(mid, run_turn=slow, hb=hb))
     assert store.load(mid)["status"] == "briefing" and mid not in hb.briefs
+
+
+def test_second_mission_queued_while_the_first_waits_for_homebase(hb):
+    a = mk()
+    m = store.load(a)
+    m["status"] = "waiting_homebase"
+    store.save(m)
+    b = mk()
+    run(briefing.next_step(b, run_turn=Lead(block({"brief": GOOD})), hb=hb))
+    assert "waiting_homebase" in store.STATUS
+    assert briefing.approve(b, "Yes", hb=hb)["status"] == "queued"
