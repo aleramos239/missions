@@ -144,33 +144,28 @@ def _save(mid, m):
     store.save(f)
 
 
-def _loop():
-    try:
-        return asyncio.get_running_loop()
-    except RuntimeError:
-        return None
-
-
-def approve(mid, said, *, hb, loop=None):
-    """loop: pass the event loop when this runs in a thread (the lock check needs it)."""
+async def approve(mid, said, *, hb):
+    """Holds the mission's lock for its whole run; refused while the Lead's turn holds it. Only the hb calls leave the loop."""
     if not isinstance(said, str) or not said.strip():
         raise ValueError("the owner's words are needed")
-    lp = loop or _loop()
-    if _locks.get((lp, mid)) and _locks[(lp, mid)].locked():
+    lock = _lock(mid)
+    if lock.locked():
         raise ValueError("the Lead is still working")
-    m = store.load(mid)
-    if m["status"] != "briefing":
-        raise ValueError(f"the mission is {m['status']}: it can only be approved while briefing")
-    b = m["brief"]
-    if not b or check(b, hb.accounts()):
-        raise ValueError("there is no valid brief to approve")
-    hb.write_brief(mid, {"approved": True, "owner_said": f"{said.strip()} (mission {mid}, {date.today()}: {m['sentence']})",
-                         "test_months": m["test_months"], "goal": b["goal"]})
-    busy = any(o["id"] != mid and o["status"] in BUSY for o in store.missions())
-    m["status"] = "queued" if busy else "ready"
-    store.save(m)
-    store.event(mid, "status", "engine", m["status"])
-    return m
+    async with lock:  # no await between the check and this: nothing slips in
+        m = store.load(mid)
+        if m["status"] != "briefing":
+            raise ValueError(f"the mission is {m['status']}: it can only be approved while briefing")
+        b = m["brief"]
+        if not b or check(b, await asyncio.to_thread(hb.accounts)):
+            raise ValueError("there is no valid brief to approve")
+        await asyncio.to_thread(hb.write_brief, mid, {
+            "approved": True, "owner_said": f"{said.strip()} (mission {mid}, {date.today()}: {m['sentence']})",
+            "test_months": m["test_months"], "goal": b["goal"]})
+        busy = any(o["id"] != mid and o["status"] in BUSY for o in store.missions())
+        m["status"] = "queued" if busy else "ready"
+        store.save(m)
+        store.event(mid, "status", "engine", m["status"])
+        return m
 
 
 def page(brief, accounts):

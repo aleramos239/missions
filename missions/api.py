@@ -227,7 +227,7 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     async def brief_approve(mid: int, body: dict = Body(...)):
         _mission(mid)
         with bad():
-            return await asyncio.to_thread(briefing.approve, mid, body.get("said"), hb=hb, loop=asyncio.get_running_loop())
+            return await briefing.approve(mid, body.get("said"), hb=hb)
 
     @app.post("/api/missions/{mid}/chat")
     async def chat(mid: int, body: dict = Body(...)):

@@ -93,14 +93,14 @@ def test_drafts_refused_and_never_written(hb):
     m = store.load(mid)
     m["brief"] = briefing._clean({**GOOD, "drafts": True})
     store.save(m)
-    briefing.approve(mid, "Yes, start", hb=hb)
+    run(briefing.approve(mid, "Yes, start", hb=hb))
     assert "drafts" not in hb.briefs[mid]
 
 
 def test_approve_writes_exact_keys(hb):
     mid = mk()
     run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
-    m = briefing.approve(mid, "Yes, start: go", hb=hb)
+    m = run(briefing.approve(mid, "Yes, start: go", hb=hb))
     b = hb.briefs[mid]
     assert set(b) == {"approved", "owner_said", "test_months", "goal"} and b["approved"] is True
     assert "Yes, start: go" in b["owner_said"] and "pass the 50k" in b["owner_said"]
@@ -112,7 +112,7 @@ def test_approve_needs_words(hb):
     mid = mk()
     run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
     with pytest.raises(ValueError):
-        briefing.approve(mid, "  ", hb=hb)
+        run(briefing.approve(mid, "  ", hb=hb))
     assert mid not in hb.briefs
 
 
@@ -123,7 +123,7 @@ def test_second_mission_queued(hb):
     store.save(m)
     b = mk()
     run(briefing.next_step(b, run_turn=Lead(block({"brief": GOOD})), hb=hb))
-    assert briefing.approve(b, "Yes", hb=hb)["status"] == "queued"
+    assert run(briefing.approve(b, "Yes", hb=hb))["status"] == "queued"
 
 
 def test_page_has_bans(hb):
@@ -157,7 +157,7 @@ def test_rule_dropped_on_non_eval(hb):
 def approved(hb):
     mid = mk()
     run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
-    briefing.approve(mid, "Yes", hb=hb)
+    run(briefing.approve(mid, "Yes", hb=hb))
     return mid
 
 
@@ -165,7 +165,7 @@ def test_repeat_approve_refused(hb):
     mid = approved(hb)
     n = len(hb.calls)
     with pytest.raises(ValueError):
-        briefing.approve(mid, "Yes again", hb=hb)
+        run(briefing.approve(mid, "Yes again", hb=hb))
     assert not [c for c in hb.calls[n:] if c[0] == "write_brief"] and store.load(mid)["status"] == "ready"
 
 
@@ -177,7 +177,7 @@ def test_approve_only_while_briefing(hb, status):
     m["status"] = status
     store.save(m)
     with pytest.raises(ValueError):
-        briefing.approve(mid, "Yes", hb=hb)
+        run(briefing.approve(mid, "Yes", hb=hb))
     assert mid not in hb.briefs and store.load(mid)["status"] == status
 
 
@@ -188,7 +188,7 @@ def test_ask_and_error_clear_the_brief(hb):
     run(briefing.next_step(mid, "change", run_turn=Lead(block({"ask": {"q": "?", "options": ["a", "b"]}})), hb=hb))
     assert store.load(mid)["brief"] is None
     with pytest.raises(ValueError):
-        briefing.approve(mid, "Yes", hb=hb)
+        run(briefing.approve(mid, "Yes", hb=hb))
     run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
 
     async def fail(*a, **k):
@@ -221,7 +221,7 @@ def test_approve_during_a_turn_is_refused_and_status_kept(hb):
 
     async def slow(*a, **k):
         with pytest.raises(ValueError):
-            briefing.approve(mid, "Yes", hb=hb)
+            await briefing.approve(mid, "Yes", hb=hb)
         return worker.Turn(text=block({"ask": {"q": "?", "options": ["a", "b"]}}), ok=True)
     run(briefing.next_step(mid, run_turn=slow, hb=hb))
     assert store.load(mid)["status"] == "briefing" and mid not in hb.briefs
@@ -235,4 +235,26 @@ def test_second_mission_queued_while_the_first_waits_for_homebase(hb):
     b = mk()
     run(briefing.next_step(b, run_turn=Lead(block({"brief": GOOD})), hb=hb))
     assert "waiting_homebase" in store.STATUS
-    assert briefing.approve(b, "Yes", hb=hb)["status"] == "queued"
+    assert run(briefing.approve(b, "Yes", hb=hb))["status"] == "queued"
+
+
+def test_next_step_during_a_slow_approve_waits_and_approve_wins(hb):
+    import time
+    mid = mk()
+    run(briefing.next_step(mid, run_turn=Lead(block({"brief": GOOD})), hb=hb))
+    orig = hb.accounts
+
+    def slow():
+        time.sleep(0.2)
+        return orig()
+    hb.accounts = slow
+
+    async def go():
+        a = asyncio.ensure_future(briefing.approve(mid, "Yes", hb=hb))
+        await asyncio.sleep(0.05)  # approve is inside its slow hb call, holding the lock
+        n = await briefing.next_step(mid, "change it", run_turn=Lead(block({"brief": GOOD})), hb=hb)
+        return await a, n
+    m, n = run(go())
+    assert "not briefing" in n["error"]
+    got = store.load(mid)
+    assert got["status"] == "ready" and got["brief"] and hb.briefs[mid]["approved"] is True
