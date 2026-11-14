@@ -31,3 +31,15 @@ def test_demo_page_and_writes_touch_nothing(tmp_path):
     assert call("GET", "/api/missions/1/events").json().__len__() == 8
     assert call("GET", "/api/missions/1/brief").json()["account"]["bans"]
     assert call("GET", "/api/missions/9").status_code == 404
+
+
+def test_demo_only_when_exactly_one(monkeypatch):
+    from missions import api
+    for v, on in (("1", True), ("0", False), ("false", False), ("", False), (None, False)):
+        if v is None:
+            monkeypatch.delenv("MISSIONS_DEMO", raising=False)
+        else:
+            monkeypatch.setenv("MISSIONS_DEMO", v)
+        assert (api.build().app.__class__.__name__ == "FastAPI") is True
+        routes = {r.path for r in api.build().app.routes}
+        assert ("/api/connections" in routes and "/api/hunt" not in routes) is on, v

@@ -1,4 +1,4 @@
-import { statusWord } from "./fmt.js";
+import { statusWord, esc } from "./fmt.js";
 import { goalText } from "./panel.js";
 import * as sse from "./sse.js";
 import * as side from "./side.js";
@@ -11,6 +11,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const H = document.documentElement;
 // S: what the page is showing. id = the open mission (null on New mission / Connections)
 const S = { list: [], id: null, page: "new", m: null, events: [], open: new Set(), shut: new Set() };
+const NARROW = 1000; // under this the right panel folds away so the three columns fit
 let closeStream = null, timer = null, firstPaint = true;
 
 export async function api(path, o = {}) {
@@ -30,19 +31,24 @@ function parse() {
   return { id: null, page: p[0] === "conn" ? "conn" : "new" };
 }
 
+let seq = 0;
 async function route() {
-  const r = parse();
+  const me = ++seq, r = parse();
   if (r.id !== S.id) {
     if (closeStream) closeStream();
     closeStream = null; S.m = null; S.events = []; S.briefKey = null;
   }
-  const changed = r.id !== S.id;
   S.id = r.id; S.page = r.page;
-  if (S.id && changed) {
+  if (S.id && !(S.m && S.m.id === S.id)) { // not loaded yet (or an older route's fetch was dropped): fetch it
+    const id = S.id;
+    let m, events;
     try {
-      [S.m, S.events] = await Promise.all([api(`/api/missions/${S.id}`), api(`/api/missions/${S.id}/events`)]);
-    } catch (e) { S.id = null; S.page = "new"; return go("#/new"); }
-    closeStream = sse.open(S.id, S.events.length ? S.events[S.events.length - 1].n : 0, onEvent);
+      [m, events] = await Promise.all([api(`/api/missions/${id}`), api(`/api/missions/${id}/events`)]);
+    } catch (e) { if (me === seq) { S.id = null; S.page = "new"; go("#/new"); } return; }
+    if (me !== seq) return; // a newer route started: it owns the page now
+    S.m = m; S.events = events;
+    if (closeStream) closeStream();
+    closeStream = sse.open(id, events.length ? events[events.length - 1].n : 0, onEvent);
   }
   paint();
   if (S.page === "conn") conn();
@@ -82,18 +88,19 @@ function view() {
 
 function paint(scroll = true) {
   paintSide();
+  if (S.id && !S.m) return; // still loading: keep what is shown
   const v = view();
   document.querySelectorAll(".view").forEach((s) => (s.hidden = s.id !== "v-" + v));
   const m = S.id && S.m;
   $("#tbTitle").textContent = m ? m.title : S.page === "conn" ? "Connections" : "New mission";
   $("#tbSub").textContent = m ? `${statusWord(m)} · goal ${goalText(m.board.goal)}` : S.page === "conn" ? "Claude and the Lab" : "Nothing runs yet";
   panel.toolbar(m || null);
-  H.classList.toggle("hb-insp-off", !m || H.dataset.inspShut === "1");
-  if (!m) return;
+  H.classList.toggle("hb-insp-off", !m || H.dataset.inspShut === "1" || window.innerWidth < NARROW);
+  if (!m) { ["pMission", "pNow", "pBrief"].forEach((i) => ($("#" + i).innerHTML = "")); return; }
   panel.render(m);
   if (v === "chat") chat.renderChat(S);
   else if (v === "brief") chat.renderBrief(S, api);
-  else $("#otherTitle").innerHTML = `${(side.PAGES.find((p) => p[0] === S.page) || [, S.page])[1]}.<br><span>${m.title}</span>`;
+  else $("#otherTitle").innerHTML = `${(side.PAGES.find((p) => p[0] === S.page) || [, S.page])[1]}.<br><span>${esc(m.title)}</span>`;
   const last = $(v === "brief" ? "#briefFeed .feed-row:last-child" : "#feed .feed-row:last-child");
   if (last && (scroll || firstPaint)) { last.scrollIntoView({ block: "nearest" }); firstPaint = false; }
 }
@@ -108,7 +115,7 @@ async function conn() {
       + row(!!h.chart_service, "Homebase Lab", "the tester the team uses · this Mac", h.chart_service ? "Connected" : "Not answering")
       + row(c.hunt_paused !== false, "The hunt loop", "paused while a mission runs", c.hunt_paused === null ? "Unknown" : c.hunt_paused ? "Paused" : "Running");
     $("#labPill").querySelector(".hb-m-long").textContent = h.chart_service ? "Lab connected" : "Lab not answering";
-  } catch (e) { rows.innerHTML = `<div class="mx-err">${e.message}</div>`; }
+  } catch (e) { rows.innerHTML = `<div class="mx-err">${esc(e.message)}</div>`; }
 }
 
 // the toolbar
@@ -131,6 +138,7 @@ nw.init({ api, go, refreshList });
 chat.init({ S, api, reload });
 mic.init();
 window.addEventListener("hashchange", route);
+window.addEventListener("resize", () => paint(false));
 setInterval(() => refreshList().catch(() => {}), 15000);
 
 refreshList().then(() => {

@@ -391,8 +391,12 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     return Guard(app)
 
 
-if os.environ.get("MISSIONS_DEMO"):
-    from . import demo
-    app = demo.make_app()
-else:
-    app = make_app(runner=True)
+def build():
+    """The served app: the demo only when MISSIONS_DEMO is exactly "1"."""
+    if os.environ.get("MISSIONS_DEMO") == "1":
+        from . import demo
+        return demo.make_app()
+    return make_app(runner=True)
+
+
+app = build()

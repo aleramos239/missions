@@ -2,6 +2,7 @@ import { esc, money, pct, pts, statusWord } from "./fmt.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
 const LIVE = ["running", "waiting_plan", "waiting_homebase"];
+export const STEP_WORD = { ideas: "Ideas", build: "Build and run", wait: "Waiting", argue: "Argue", verdict: "Verdict", read: "Test months" };
 const SHOW_RUN = [...LIVE, "paused", "waiting_owner"];
 // who does what at each fixed step
 const DOING = { ideas: { lead: "planning the round" }, build: { builder: "building" }, wait: { builder: "waiting on a test" },
@@ -40,7 +41,7 @@ export function toolbar(d) {
   const live = LIVE.includes(d.status);
   document.getElementById("tbBulb").className = "bulb " + (d.status === "running" ? "ok" : "warn");
   document.getElementById("tbWord").textContent = d.status === "running" ? "Working" : statusWord(d);
-  const chip = d.step ? `${d.step} · round ${d.round}` : `round ${d.round}`;
+  const chip = d.step ? `${STEP_WORD[d.step] || "Working"} · round ${d.round}` : `round ${d.round}`;
   document.getElementById("tbChip").textContent = chip; document.getElementById("tbChipS").textContent = `round ${d.round}`;
   const p = document.getElementById("pauseBtn");
   p.textContent = live ? "Pause" : "Resume"; p.dataset.act = live ? "pause" : "resume";

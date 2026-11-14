@@ -5,7 +5,7 @@ import * as f from "../../missions/static/js/fmt.js";
 test("numbers keep their sign", () => {
   assert.equal(f.money(-1234.5), "−$1,235");
   assert.equal(f.money(1234.5), "+$1,235");
-  assert.equal(f.money(0), "+$0");
+  assert.equal(f.money(0), "$0");
   assert.equal(f.pct(0.41), "41 %");
   assert.equal(f.pts(4.1), "+4.1");
   assert.equal(f.pts(-0.25), "−0.3");
@@ -28,4 +28,15 @@ test("sidebar words", () => {
   assert.equal(f.statusWord({ status: "waiting_homebase", round: 2 }), "Waiting for Homebase");
   assert.equal(f.statusWord({ status: "paused", round: 2 }), "Paused");
   assert.equal(f.statusWord({ status: "crashed", round: 2 }), "Error");
+});
+
+test("missing and zero values", () => {
+  for (const g of [f.money, f.pct, f.pts, f.rr]) for (const v of [NaN, null, undefined, Infinity, -Infinity]) assert.equal(g(v), "—");
+  assert.equal(f.money(-0.4), "$0");
+  assert.equal(f.money(-0), "$0");
+  assert.equal(f.money(1234567.89), "+$1,234,568");
+  assert.equal(f.pct(0), "0 %");
+  assert.equal(f.pct(-0.001), "0 %");
+  assert.equal(f.pts(0), "0.0");
+  assert.equal(f.pts(-0.04), "0.0");
 });

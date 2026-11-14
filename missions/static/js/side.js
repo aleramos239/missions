@@ -1,4 +1,5 @@
 import { esc, statusWord } from "./fmt.js";
+import { STEP_WORD } from "./panel.js";
 
 export const PAGES = [["chat", "Chat", "mx-ico-chat"], ["run", "Running", "mx-ico-clock"], ["prog", "Progress", "mx-ico-chart"],
   ["best", "Best so far", "mx-ico-star"], ["heat", "Heat map", "mx-ico-grid"], ["pass", "Eval pass", "mx-ico-check"],
@@ -10,7 +11,7 @@ const DONE = ["achieved", "limit", "out_of_reach", "stopped"];
 function badges(m, d) {
   if (!d || d.id !== m.id) return {};
   const b = d.right.best, tr = d.board.tries.mission;
-  return { chat: m.badge || "", run: d.right.doing.step || "", best: b ? `${b.version}${b.box ? " " + b.box.split(" · ")[1] : ""}` : "", tested: `${tr} ${tr === 1 ? "try" : "tries"}` };
+  return { chat: m.badge || "", run: STEP_WORD[d.right.doing.step] || "", best: b ? `${b.version}${b.box ? " " + b.box.split(" · ")[1] : ""}` : "", tested: `${tr} ${tr === 1 ? "try" : "tries"}` };
 }
 
 export function render(el, list, S) {

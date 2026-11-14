@@ -3,7 +3,7 @@ import { goalText, goalVal, stopsText, testMonths } from "./panel.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const WHO = { owner: "You", engine: "Tests", lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender", judge: "Judge" };
-const cap = (s) => s[0].toUpperCase() + s.slice(1);
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "");
 const clock = (at) => new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 // the fixed steps on the line: Brief, Ideas, Build and run, Argue, Verdict, Test months
 const STEP_AT = { ideas: 1, build: 2, wait: 2, argue: 3, verdict: 4, read: 5 };
@@ -12,10 +12,10 @@ const APPROVE = "Yes, start: the team may run heat maps, pick boxes by the score
 const APPROVE_ASK = "Yes, start: the team may run heat maps and pick boxes by the score; it asks me before the test months";
 
 function row(e, m) {
-  const who = WHO[e.who] || cap(e.who);
-  const tag = e.who === "judge" ? "code" : e.who === "owner" ? (e.to ? `to ${cap(e.to)}` : "") : m.team[e.who] ? cap(m.team[e.who].model) : "";
+  const who = WHO[e.who] || cap(String(e.who || "?"));
+  const tag = e.who === "judge" ? "code" : e.who === "owner" ? (e.to ? `to ${cap(String(e.to))}` : "") : m.team[e.who] ? cap(String(m.team[e.who].model)) : "";
   const line = e.data && typeof e.data.line === "string" ? `<div class="raw">${esc(e.data.line)}</div>` : "";
-  return `<div class="feed-row${who === "You" ? " you" : ""}" data-who="${who}" data-n="${e.n}"><span class="t">${clock(e.at)}</span><div class="h"><b>${who}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<p>${esc(e.text)}</p></div>${line}</div>`;
+  return `<div class="feed-row${who === "You" ? " you" : ""}" data-who="${esc(who)}" data-n="${e.n}"><span class="t">${clock(e.at)}</span><div class="h"><b>${esc(who)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<p>${esc(e.text)}</p></div>${line}</div>`;
 }
 const chatOnly = (events) => events.filter((e) => e.type === "chat" && e.text);
 
@@ -94,7 +94,9 @@ function warn(text) {
     const d = document.createElement("div"); d.className = "mx-warn"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");
     d.innerHTML = `<div><p>${esc(text)}</p><div class="row"><button class="btn btn-outline btn-sm" type="button" data-r="0">Don't send</button><button class="btn btn-default btn-sm" type="button" data-r="1">Send anyway</button></div></div>`;
     d.onclick = (e) => { const b = e.target.closest("[data-r]"); if (b) { d.remove(); done(b.dataset.r === "1"); } };
-    document.body.append(d); d.querySelector("[data-r='0']").focus();
+    const no = d.querySelector("[data-r='0']");
+    d.onkeydown = (e) => { if (e.key === "Escape") { d.remove(); done(false); } };
+    document.body.append(d); no.focus();
   });
 }
 
