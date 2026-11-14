@@ -124,6 +124,8 @@ def bad_init(**k):
 @pytest.mark.parametrize("init", [
     bad_init(tools=["mcp__homebase__a", "Bash"]),
     bad_init(tools=[]),
+    bad_init(mcp_servers=[{"name": "other", "status": "connected"}]),
+    ev(type="system", subtype="init", tools=["mcp__homebase__a"]),
     bad_init(mcp_servers=[{"name": "homebase", "status": "failed"}]),
     bad_init(mcp_servers=[{"name": "homebase", "status": "connected"}, {"name": "x", "status": "connected"}]),
 ])
@@ -163,3 +165,16 @@ def test_env_read_at_call_time(monkeypatch, tmp_path):
     assert config.hb_missions() == tmp_path / "a" and config.hb_python() == tmp_path / "py"
     monkeypatch.setenv("HOMEBASE_MISSIONS", str(tmp_path / "b"))
     assert config.hb_missions() == tmp_path / "b"
+
+
+def test_stdin_is_devnull_even_if_parent_has_a_pipe(fake):
+    r, w = os.pipe()
+    saved = os.dup(0)
+    os.dup2(r, 0)
+    try:
+        t, argv = fake([INIT, text("x"), RESULT])
+    finally:
+        os.dup2(saved, 0)
+        for fd in (r, w, saved):
+            os.close(fd)
+    assert t.ok and argv["stdin_devnull"] and not argv["stdin_isatty"]

@@ -122,10 +122,15 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
     finally:
         try:
             os.killpg(p.pid, signal.SIGKILL)  # the whole group, so the MCP child dies too
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):  # macOS: PermissionError on a zombie-only group
             pass
-        await p.wait()
-        await drain_task
+        try:
+            await p.wait()
+        finally:
+            try:
+                await asyncio.wait_for(drain_task, 5)
+            except asyncio.TimeoutError:
+                drain_task.cancel()
     t.text = "\n".join(x for x in texts if x)
     if result:
         t.session_id = result.get("session_id") or t.session_id
