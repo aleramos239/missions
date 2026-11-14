@@ -22,6 +22,22 @@ def homebase() -> Path:
     return _env("MISSIONS_HOMEBASE", "~/ramos-quant-homebase")
 
 
+def judge() -> Path:
+    return _env("MISSIONS_JUDGE", homebase() / "research/edge-library/missions/judge")
+
+
+def ideas_root() -> Path:
+    return _env("HOMEBASE_IDEAS_ROOT", "~/.homebase/ideas")
+
+
+def hb_python() -> Path:
+    return _env("MISSIONS_HB_PYTHON", homebase() / ".venv/bin/python")
+
+
+def chart_port() -> int:
+    return int(os.environ.get("MISSIONS_CHART_PORT") or 8852)
+
+
 def hb_missions() -> Path:
     return _env("HOMEBASE_MISSIONS", "~/.homebase/missions")
 
