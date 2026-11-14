@@ -268,6 +268,8 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         m = _mission(mid)
         with bad():
             fam = body["family"]
+            if not isinstance(fam, str) or not isinstance(body.get("said"), str):
+                raise ValueError("family and said are words")
             if m["status"] not in store.DONE or not any(v.get("family") == fam for v in m["versions"]):
                 raise ValueError("the mission is not over, or never used that family")
             wrapup.mark_dead(fam, f"mission {mid}", body.get("said"))

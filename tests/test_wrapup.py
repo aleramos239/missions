@@ -87,3 +87,49 @@ def test_dead_route():
     assert call("POST", f"/api/missions/{mid}/dead", json={"family": "zzz", "said": "yes"}).status_code == 400
     assert call("POST", f"/api/missions/{mid}/dead", json={"family": "fvg", "said": "yes mark it"}).status_code == 200
     assert "| fvg | dead" in d.read_text()
+
+
+def test_a_failed_write_leaves_the_file_whole(monkeypatch):
+    v = vault_setup()
+    old = (v / "RECENT.md").read_text()
+    monkeypatch.setattr(wrapup.os, "replace", lambda *a: (_ for _ in ()).throw(OSError("disk")))
+    with pytest.raises(OSError):
+        run_end(ended())
+    assert (v / "RECENT.md").read_text() == old
+
+
+def test_map_line_lands_at_the_end_of_its_section_with_a_newline():
+    v = vault_setup()
+    mp = v / "30-Projects/Onyx-Trading" / wrapup.MAP_FILE
+    mp.write_text("# x\n\n## Missions\n\n- 2026-01-01 · a · reached · [[z]]\n\n## Later\n\ntail")
+    run_end(ended())
+    t = mp.read_text()
+    assert t.index(KEY) < t.index("## Later") and t.index("[[z]]") < t.index(KEY) and t.endswith("tail")
+    mp.write_text("# x\n\n## Missions\n\n- 2026-01-01 · a · reached · [[z]]")  # no final newline
+    wrapup._edit(mp, lambda t: wrapup._map_add(t, "- new [[n]]", "n"))
+    assert mp.read_text().endswith("[[z]]\n- new [[n]]\n")
+
+
+def test_title_with_colon_and_newline_and_recent_after_frontmatter():
+    v = vault_setup()
+    mid = ended()
+    m = store.load(mid)
+    m["title"] = "a: b\nc"
+    store.save(m)
+    (v / "RECENT.md").write_text("---\nname: R\ntags:\n- x\n---\n\n- old\n")
+    run_end(mid)
+    r = (v / "RECENT.md").read_text()
+    assert r.index("Mission 1") > r.index("\n---\n") and "\n" not in wrapup.recent_line(store.load(mid))
+    assert 'description: "' in next((v / "30-Projects/Onyx-Trading/Missions").glob("*.md")).read_text()
+
+
+def test_dead_missing_file_bad_types_and_duplicates():
+    v = vault_setup()
+    mid = ended()
+    post = lambda b: call("POST", f"/api/missions/{mid}/dead", json=b).status_code
+    assert post({"family": "fvg", "said": "yes"}) == 400  # no dead-families.md
+    d = v / "30-Projects/Onyx-Trading/dead-families.md"
+    d.write_text("| family | verdict | date | why |\n|---|---|---|---|\n")
+    assert post({"family": 5, "said": "yes"}) == 400 and post({"family": "fvg", "said": ["x"]}) == 400
+    assert post({"family": "fvg", "said": "yes"}) == 200 and post({"family": "fvg", "said": "yes"}) == 200
+    assert d.read_text().count("| fvg |") == 1
