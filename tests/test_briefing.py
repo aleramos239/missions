@@ -258,3 +258,13 @@ def test_next_step_during_a_slow_approve_waits_and_approve_wins(hb):
     assert "not briefing" in n["error"]
     got = store.load(mid)
     assert got["status"] == "ready" and got["brief"] and hb.briefs[mid]["approved"] is True
+
+
+def test_briefing_turn_is_toolless(hb):
+    seen = []
+
+    async def lead(mid, role, prompt, **kw):
+        seen.append(kw)
+        return worker.Turn(text=block({"brief": GOOD}), session_id="s1", ok=True)
+    run(briefing.next_step(mk(), run_turn=lead, hb=hb))
+    assert seen and all(k.get("tools") is False for k in seen)

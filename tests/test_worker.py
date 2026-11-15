@@ -178,3 +178,34 @@ def test_stdin_is_devnull_even_if_parent_has_a_pipe(fake):
         for fd in (r, w, saved):
             os.close(fd)
     assert t.ok and argv["stdin_devnull"] and not argv["stdin_isatty"]
+
+
+def test_toolless_command_has_no_server():
+    config.save_settings({"claude": FAKE})
+    c = worker.command(7, "lead", "haiku", "low", None, tools=False)
+    assert json.loads(c[c.index("--mcp-config") + 1]) == {"mcpServers": {}}
+    assert "homebase" not in c[c.index("--mcp-config") + 1]
+    for f in ("--restricted", "--strict-mcp-config"):
+        assert f in c
+    assert c[c.index("--tools") + 1] == "" and c[c.index("--permission-mode") + 1] == "dontAsk"
+
+
+NO_TOOLS = ev(type="system", subtype="init", session_id="S0", tools=[], mcp_servers=[])
+
+
+@pytest.mark.parametrize("init", [NO_TOOLS, ev(type="system", subtype="init", session_id="S0", tools=[])])
+def test_toolless_fence_passes(fake, init):
+    t, _ = fake([init, text("hi"), RESULT], tools=False)
+    assert t.ok and t.text == "hi" and t.why is None
+
+
+@pytest.mark.parametrize("init", [INIT, bad_init(tools=[]), bad_init(mcp_servers=[]),
+                                  ev(type="system", subtype="init", tools=["Bash"], mcp_servers=[])])
+def test_toolless_fence_fails(fake, init):
+    t, _ = fake([init, text("hi"), RESULT], tools=False)
+    assert t.why.startswith("crash: fence") and not t.ok
+
+
+def test_toolless_any_tool_use_is_outside_the_fence(fake):
+    t, _ = fake([NO_TOOLS, tool("mcp__homebase__a"), RESULT], tools=False)
+    assert t.why.startswith("crash: a tool outside the fence")

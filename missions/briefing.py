@@ -103,7 +103,7 @@ async def _step(mid, answer, run_turn, hb):
         pr = roles.prompt("lead", "brief", brief=m["sentence"], board=accounts, chat=_chat(mid), ask=ask,
                           digest=_digest.digest())
         t = await run_turn(mid, "lead", pr, model=lead["model"], effort=lead["effort"],
-                           session_id=m["sessions"].get("lead"))
+                           session_id=m["sessions"].get("lead"), tools=False)
         m["sessions"]["lead"] = t.session_id or m["sessions"].get("lead")
         if not t.ok:
             _save(mid, m)

@@ -36,11 +36,13 @@ class Turn:
     resets_at: int | None = None
 
 
-def command(mid, role, model, effort, session_id):
+def command(mid, role, model, effort, session_id, tools=True):
     hbr = config.homebase()
     mcp = {"mcpServers": {"homebase": {"command": str(config.hb_python()),
                                        "args": ["-m", "homebase.claude_mcp", "--mission", str(mid)],
                                        "env": {"PYTHONPATH": str(hbr), "HOMEBASE_MISSIONS": str(config.hb_missions())}}}}
+    if not tools:  # no brief on file yet: the connector would refuse, so this turn gets no server at all
+        mcp = {"mcpServers": {}}
     cmd = [str(config.claude_bin()), "-p", "--restricted", "--strict-mcp-config", "--mcp-config", json.dumps(mcp),
            "--tools", "", "--allowedTools", "mcp__homebase", "--permission-mode", "dontAsk",
            "--model", model, "--effort", effort, "--output-format", "stream-json", "--verbose"]
@@ -48,12 +50,13 @@ def command(mid, role, model, effort, session_id):
 
 
 async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_tool_calls=40, timeout_s=1200,
-                   on_event=None, init_out=None) -> Turn:
+                   on_event=None, init_out=None, tools=True) -> Turn:
+    allow_tools = tools
     t = Turn()
     texts = []
     emit = on_event or (lambda kind, data: None)
     try:
-        p = await asyncio.create_subprocess_exec(*command(mid, role, model, effort, session_id), prompt,
+        p = await asyncio.create_subprocess_exec(*command(mid, role, model, effort, session_id, tools), prompt,
                                                   cwd=config.work_dir(mid, role), stdin=DEVNULL, stdout=PIPE,
                                                   stderr=PIPE, limit=1 << 26, start_new_session=True)
     except OSError as e:
@@ -97,9 +100,13 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
             if kind == "system" and ev.get("subtype") == "init":
                 seen_init = True
                 tools, srv = ev.get("tools"), ev.get("mcp_servers")
-                if (not tools or not all(isinstance(x, str) and x.startswith(PREFIX) for x in tools)
-                        or not isinstance(srv, list) or len(srv) != 1 or not isinstance(srv[0], dict)
-                        or srv[0].get("name") != "homebase" or srv[0].get("status") != "connected"):
+                if allow_tools:
+                    bad = (not tools or not all(isinstance(x, str) and x.startswith(PREFIX) for x in tools)
+                           or not isinstance(srv, list) or len(srv) != 1 or not isinstance(srv[0], dict)
+                           or srv[0].get("name") != "homebase" or srv[0].get("status") != "connected")
+                else:
+                    bad = bool(tools) or bool(srv)
+                if bad:
                     t.why = f"crash: fence: tools={tools!r} mcp_servers={srv!r}"
                     break
                 t.session_id = ev.get("session_id") or t.session_id
@@ -114,7 +121,7 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
                         name, inp = b.get("name", ""), b.get("input")
                         t.tool_calls.append({"name": name, "input": inp})
                         emit("tool", {"name": name, "input": inp})
-                        if not name.startswith(PREFIX):
+                        if not allow_tools or not name.startswith(PREFIX):
                             t.why = f"crash: a tool outside the fence: {name}"
                         elif len(t.tool_calls) > max_tool_calls:
                             t.why = "too many tool calls"
