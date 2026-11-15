@@ -1,7 +1,7 @@
 import { esc, pct, ago, hm } from "./fmt.js";
 import { api } from "./net.js";
 import { DOING } from "./panel.js";
-import { readTeam, roleRow, wire } from "./team.js";
+import { editing, readTeam, roleRow, wire } from "./team.js";
 import { title, sec, group, acct, mount } from "./ui.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
@@ -17,6 +17,7 @@ function usageLine(u, m) {
 export default {
   on: ["step", "progress", "status"],
   render(m, el) {
+    if (editing(el)) return;  // a repaint would reset the select the owner has open
     return mount(el, async () => {
       const [r, c, refused] = await Promise.all([api(`/api/missions/${m.id}/running`), api("/api/connections"), api(`/api/missions/${m.id}/refused`)]);
       const now = Date.now() / 1000, live = ["running", "waiting_homebase"].includes(m.status);

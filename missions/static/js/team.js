@@ -23,3 +23,5 @@ export function wire(root, sub, onChange) {
     if (onChange) onChange(r.dataset.role, { model: m.value, effort: f.value });
   })));
 }
+// true while the owner has a select of the team rows focused: a repaint would reset it
+export const editing = (root) => !!root && !!root.querySelector("#teamRows select:focus");

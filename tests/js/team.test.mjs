@@ -14,3 +14,10 @@ test("a role row selects the team's model and effort", () => {
   assert.match(h, /value="sonnet" selected/);
   assert.match(h, /value="medium" selected/);
 });
+
+test("editing is true only while a team select has focus", () => {
+  const root = (hit) => ({ querySelector: (q) => (q === "#teamRows select:focus" ? hit : null) });
+  assert.equal(t.editing(root({})), true);
+  assert.equal(t.editing(root(null)), false);
+  assert.equal(t.editing(null), false);
+});
