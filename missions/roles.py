@@ -9,7 +9,10 @@ _IDEAS = ('{"ideas": [{"idea": "...", "family": "<a family blueprint_blocks list
           "(at most 3)")
 _C = {
     ("lead", "brief"): ('{"ask": {"q": "...", "options": ["...", "..."]}} to ask the owner one thing, '
-                        'or {"brief": {...}} when the brief is ready'),
+                        'or, when the brief is ready, exactly this shape: {"brief": {"goal": {"kind": "eval" | "points" | '
+                        '"net", "target": 0.5, "rule": "<an account id from the board, eval only>"}, "idea": "...", '
+                        '"fixed": ["..."], "may_change": ["..."], "fewest_trades_week": 2, "notes": "..."}} '
+                        '(an eval target is a share 0-1; points and net targets are numbers above 0)'),
     ("builder", "ideas"): _IDEAS, ("doubter", "ideas"): _IDEAS, ("defender", "ideas"): _IDEAS,
     ("lead", "ideas"): ('{"plan": [{"version": "v08", "idea": "...", "family": "...", "why": "..."}]} '
                         "(at most 3 a round)"),
