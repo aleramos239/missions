@@ -284,12 +284,8 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
             with bad():
                 store.check_limits(body["limits"])
         if "team" in body:
-            t = body["team"]
-            if not isinstance(t, dict) or set(t) != set(store.ROLES):
-                raise Bad(f"team needs exactly {list(store.ROLES)}")
-            for r_ in store.ROLES:
-                if not isinstance(t[r_], dict) or t[r_].get("model") not in store.MODELS or t[r_].get("effort") not in store.EFFORTS:
-                    raise Bad(f"bad team entry for {r_}")
+            with bad():
+                store.check_team(body["team"])
         for k in engine.OWNER_KEYS:
             if k in body:
                 m[k] = body[k]
@@ -297,6 +293,19 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
         if "test_months" in body:
             await asyncio.to_thread(hb.set_test_months, mid, body["test_months"])
         return m
+
+    @app.get("/api/team-defaults")
+    async def get_team_defaults():
+        return store.team_defaults()
+
+    @app.put("/api/team-defaults")
+    async def put_team_defaults(body: dict = Body(...)):
+        with bad():
+            store.check_team(body)
+        s = config.settings()
+        s["team_defaults"] = {r: {"model": body[r]["model"], "effort": body[r]["effort"]} for r in store.ROLES}
+        config.save_settings(s)
+        return s["team_defaults"]
 
     # ---- the owner's pages
     @app.get("/api/missions/{mid}/tested")

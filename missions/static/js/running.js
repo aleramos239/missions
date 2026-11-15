@@ -1,10 +1,10 @@
 import { esc, pct, ago, hm } from "./fmt.js";
 import { api } from "./net.js";
 import { DOING } from "./panel.js";
+import { readTeam, roleRow, wire } from "./team.js";
 import { title, sec, group, acct, mount } from "./ui.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
-const MODEL = { opus: "Opus", fable: "Fable", sonnet: "Sonnet", haiku: "Haiku" };
 
 function usageLine(u, m) {
   const f = u.five_hour && u.five_hour.used, w = u.seven_day && u.seven_day.used;
@@ -26,8 +26,7 @@ export default {
           min: doing && w.since ? ago(now - Date.parse(w.since) / 1000) : "—" };
       });
       const busy = workers.filter((w) => w.state === "Working").length, sl = r.slots;
-      const tag = (role) => MODEL[(m.team[role] || {}).model] || "";
-      const team = `<div class="slist">${workers.map((w) => `<div class="srow mx-norm" data-who="${NAMES[w.role]}"><div><div class="n">${NAMES[w.role]}<span class="tag">${esc(tag(w.role))}</span></div><div class="sp mono">${esc(w.doing || "idle")}</div></div><div class="rs">${w.state}</div><div class="rp mono">${esc(w.min)}</div></div>`).join("")}`
+      const team = `<div class="slist" id="teamRows">${workers.map((w) => roleRow([w.role, NAMES[w.role]], m.team, esc(`${w.state}${w.min !== "—" ? ` ${w.min}` : ""} · ${w.doing || "idle"}`))).join("")}`
         + `<div class="srow mx-norm" data-who="Judge"><div><div class="n">Judge<span class="tag">code</span></div><div class="sp mono">Scores every test the moment it ends</div></div><div class="rs">Ready</div><div class="rp mono">—</div></div></div>`;
       const tests = r.jobs.length ? `<div class="slist">${r.jobs.map((j) => {
         const [d, t] = j.progress || [0, 0];
@@ -44,6 +43,10 @@ export default {
       return title(`${busy} of 4 working.`, r.jobs.length ? `${r.jobs.length} test${r.jobs.length === 1 ? "" : "s"} running on this Mac.` : "No test is running.")
         + sec("Team", team) + sec("Tests", tests) + sec("Machines", mach) + sec("Refused tool calls", ref, "Calls the team made that the Judge's door turned down.");
     }, (el) => {
+      const rows = el.querySelector("#teamRows");
+      if (rows) wire(rows, null, async () => {  // the whole team goes back; the engine reads it before its next turn
+        try { m.team = await api(`/api/missions/${m.id}`, { method: "PATCH", body: { team: readTeam(rows) } }).then((x) => x.team); } catch (e) { alert(e.message); }
+      });
       const sw = el.querySelector("#huntSw");
       if (sw) sw.onclick = async () => {
         const on = sw.getAttribute("aria-checked") !== "true";

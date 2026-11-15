@@ -1,10 +1,8 @@
-const MODELS = [["opus", "Opus 5.5"], ["fable", "Fable 5.2"], ["sonnet", "Sonnet 5.5"], ["haiku", "Haiku 5.5"]];
-const EFFORTS = [["low", "Low"], ["medium", "Medium"], ["high", "High"], ["xhigh", "Extra high"], ["max", "Max"]];
-const ROLES = [["lead", "Lead", "opus", "plans each round, talks to you, writes the brief"],
-  ["builder", "Builder", "fable", "writes the strategy, runs every test"],
-  ["doubter", "Doubter", "sonnet", "hunts for luck, a different model on purpose"],
-  ["defender", "Defender", "opus", "argues for what works, asks for the next run"]];
-const opts = (list, sel) => list.map(([v, l]) => `<option value="${v}"${v === sel ? " selected" : ""}>${l}</option>`).join("");
+import { EFFORTS, opts, readTeam, roleRow } from "./team.js";
+const ROLES = [["lead", "Lead", "plans each round, talks to you, writes the brief"],
+  ["builder", "Builder", "writes the strategy, runs every test"],
+  ["doubter", "Doubter", "hunts for luck, a different model on purpose"],
+  ["defender", "Defender", "argues for what works, asks for the next run"]];
 // name, key, value key, options [value, label], default, text when on, text when off
 const LIMS = [
   ["Tries", "tries", "n", [10, 20, 40, 80, 160].map((n) => [n, `${n} tries`]), 40, "then it stops and reports the closest honest result", "no limit · the luck bar still rises each try, so more tries can't fake a pass"],
@@ -41,10 +39,10 @@ function paint() {
     + " Heat maps run on their own: starting the mission is your word.";
 }
 
-export function init({ api, go, refreshList }) {
+export async function init({ api, go, refreshList }) {
+  const defaults = await api("/api/team-defaults");
   $("#allEffort").innerHTML = '<option value="">Set every role…</option>' + opts(EFFORTS);
-  $("#roles").innerHTML = ROLES.map(([k, n, m, sp]) => `<div class="srow mx-role" data-who="${n}" data-role="${k}"><div><div class="n">${n}</div><div class="sp mono">${sp}</div></div>`
-    + `<select class="hb-field" aria-label="${n} model">${opts(MODELS, m)}</select><select class="hb-field mx-eff" aria-label="${n} effort">${opts(EFFORTS, "high")}</select></div>`).join("")
+  $("#roles").innerHTML = ROLES.map(([k, n, d]) => roleRow([k, n], defaults, d)).join("")
     + '<div class="srow mx-role" data-who="Judge"><div><div class="n">Judge</div><div class="sp mono">fixed code, the six real-or-luck checks</div></div><span class="rs">code</span><span class="rp mono">—</span></div>';
   $("#limits").innerHTML = '<div class="srow mx-lim mx-auto"><div><div class="n">Run until the goal</div><div class="sp mono">turns every limit off · never stops to ask you · Pause and Stop still work</div></div><span></span><button id="autoSw" class="switch" type="button" role="switch" aria-checked="true" aria-label="Run until the goal"></button></div>'
     + LIMS.map(([n, key, vk, list, def, on, off]) => `<div class="srow mx-lim off" data-lim="${key}" data-vk="${vk}" data-on="${on}" data-off="${off}"><div><div class="n">${n}</div><div class="sp mono"></div></div><div><select class="hb-field" aria-label="Most ${n.toLowerCase()}">${opts(list, def)}</select><div class="mx-nolim">No limit</div></div><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Limit the ${n.toLowerCase()}"></button></div>`).join("")
@@ -72,10 +70,7 @@ export function init({ api, go, refreshList }) {
     const sentence = $("#goal").value.trim(), err = $("#newErr");
     err.hidden = true;
     if (!sentence) { err.textContent = "Say the idea and the goal first."; err.hidden = false; return; }
-    const team = Object.fromEntries($$("#roles [data-role]").map((r) => {
-      const [m, f] = $$("select", r);
-      return [r.dataset.role, { model: m.value, effort: f.value }];
-    }));
+    const team = readTeam($("#roles"));
     try {
       const m = await api("/api/missions", { method: "POST", body: { sentence, team, limits: limits(), test_months: testMonths() } });
       $("#goal").value = "";

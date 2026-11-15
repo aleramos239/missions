@@ -299,3 +299,14 @@ def test_page_and_brief_route():
     store.save(m)
     b = call("GET", f"/api/missions/{mid}/brief", fake=fake).json()
     assert b["bans"] == ["no bots"] and b["account"]["id"] == "acct1"
+
+
+def test_team_defaults_fall_back_then_save_and_validate():
+    assert call("GET", "/api/team-defaults").json() == store.DEFAULT_TEAM
+    new = {**store.DEFAULT_TEAM, "lead": {"model": "haiku", "effort": "max"}}
+    assert call("PUT", "/api/team-defaults", json=new).json() == new
+    assert call("GET", "/api/team-defaults").json() == new
+    assert config.settings()["team_defaults"] == new
+    for bad in ({"lead": new["lead"]}, {**new, "lead": {"model": "gpt", "effort": "low"}}, {**new, "lead": {"model": "opus"}}):
+        assert call("PUT", "/api/team-defaults", json=bad).status_code == 400
+    assert call("GET", "/api/team-defaults").json() == new

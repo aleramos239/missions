@@ -280,9 +280,17 @@ class Engine:
         await self.system.wait_for_plan(resets_at, sleep=self._nap)  # sliced: Pause and Stop count
         self._status(prev if prev in ("paused", "waiting_owner") else "running")
 
+    def _team(self, role):
+        """The owner's team as saved now, so a PATCH mid-run reaches the next turn (not only the next _save)."""
+        try:
+            self.m["team"] = store.load(self.mid)["team"]
+        except (OSError, ValueError, KeyError):
+            pass
+        return self.m["team"][role]
+
     async def _once(self, role, step, chat, ask, session, kw, digest=None):
-        team = self.m["team"][role]
         while True:
+            team = self._team(role)
             ok, resets = self.system.may_start_turn()
             if not ok:
                 await self._wait_plan(resets)
@@ -304,10 +312,15 @@ class Engine:
         """(turn, reply dict) or (None, None) after one retry. The prompt's chat is fixed once, so a retry repeats it."""
         chat = self._chat_for(role, exclude)
         session, msg = self.m["sessions"].get(role), ask
+        used = self.m.setdefault("session_model", {})
+        if session and used.get(role) not in (None, self._team(role)["model"]):
+            session = None  # a resumed session cannot change model: this role starts fresh
+            self.m["sessions"].pop(role, None)
         for _ in (0, 1):
             t = await self._once(role, step, chat, msg, session, kw, digest)
             if t.ok:
                 self.m["sessions"][role] = t.session_id or session
+                used[role] = self.m["team"][role]["model"]
                 self._save()
                 if (r := roles.reply(t.text)) is not None:
                     return t, r

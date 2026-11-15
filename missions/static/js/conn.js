@@ -1,6 +1,9 @@
 import { esc } from "./fmt.js";
 import { api } from "./net.js";
 import { acct, sec, group, mount } from "./ui.js";
+import { costLine, readTeam, roleRow, wire } from "./team.js";
+
+const ROLES = [["lead", "Lead"], ["builder", "Builder"], ["doubter", "Doubter"], ["defender", "Defender"]];
 
 const row = ({ ok, nm, sub, val }) => acct({ nm, sub, val, mark: ok ? "ok" : "no" });
 
@@ -8,7 +11,7 @@ export default {
   on: ["status"],
   render(_m, el) {
     return mount(el, async () => {
-      const c = await api("/api/connections"), h = c.health || {}, s = c.settings || {};
+      const [c, td] = await Promise.all([api("/api/connections"), api("/api/team-defaults")]), h = c.health || {}, s = c.settings || {};
       document.querySelector("#labPill .hb-m-long").textContent = h.chart_service ? "Lab connected" : "Lab not answering";
       const claude = group([
         row({ ok: !!h.claude, nm: "Claude CLI", sub: s.claude ? `set path: ${s.claude}` : "found on this Mac by itself · your Claude login · no API key", val: h.claude ? `Version ${h.claude}` : "Not found" }),
@@ -19,11 +22,17 @@ export default {
         acct({ nm: "Desk, accounts, orders", sub: "the connector has no order tools; this app never touches an account", val: "Never" })]);
       const ntfy = group([
         `<div class="acct tall"><span class="grow"><span class="nm">ntfy topic</span><span class="sub">sends 'Mission 7: goal reached' to ntfy.sh; no numbers or names</span></span><input class="hb-field" id="cNtfy" value="${esc(s.ntfy_topic || "")}" aria-label="ntfy topic" placeholder="a topic only you know"><button class="btn btn-outline btn-sm" id="cNtfySave" type="button">Save</button></div>`]);
-      return sec("Claude", claude) + sec("The Lab", lab) + sec("Alerts", ntfy, "") + `<div class="mcap">The trading server is never used. Missions runs nothing there.</div>`;
+      const team = `<div class="slist" id="tdRows">${ROLES.map((r) => roleRow(r, td, esc(costLine(td[r[0]].model)))).join("")}</div>`
+        + `<div class="acct tall"><span class="grow"><span class="nm">New missions start with these</span><span class="sub">a running mission keeps its own team; change it on its Running page</span></span><button class="btn btn-outline btn-sm" id="tdSave" type="button">Save</button></div>`;
+      return sec("Claude", claude) + sec("Team defaults", team, "Most to least expensive: Fable, Opus, Sonnet, Haiku. Higher effort thinks longer and costs more.") + sec("The Lab", lab) + sec("Alerts", ntfy, "") + `<div class="mcap">The trading server is never used. Missions runs nothing there.</div>`;
     }, (el) => {
       const save = (btn, input, key) => (el.querySelector(btn).onclick = async () => {
         try { await api("/api/connections", { method: "POST", body: { [key]: el.querySelector(input).value.trim() } }); el.querySelector(btn).textContent = "Saved"; } catch (e) { alert(e.message); }
       });
+      wire(el.querySelector("#tdRows"), (_r, m) => costLine(m));
+      el.querySelector("#tdSave").onclick = async (e) => {
+        try { await api("/api/team-defaults", { method: "PUT", body: readTeam(el.querySelector("#tdRows")) }); e.target.textContent = "Saved"; } catch (x) { alert(x.message); }
+      };
       save("#cPathSave", "#cPath", "claude");
       save("#cNtfySave", "#cNtfy", "ntfy_topic");
     });

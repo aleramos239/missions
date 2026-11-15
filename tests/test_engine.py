@@ -629,3 +629,27 @@ def test_an_ending_writes_the_wrapup_once(kit):
     kit.fake.reads[f"m{kit.mid}_v01"] = {"held": True, "line": "", "close": "close"}
     assert run(kit.eng().run()) == "achieved"
     assert (config.vault() / "RECENT.md").read_text().count(f"Mission {kit.mid} ") == 1
+
+
+def test_a_team_patch_during_a_run_reaches_the_next_turns_command_and_a_new_model_starts_fresh(kit):
+    from missions import worker
+    seen = []
+    orig = kit.turns
+
+    async def spy(mid, role, prompt, *, model, effort, session_id=None, **kw):
+        seen.append((role, worker.command(mid, role, model, effort, session_id), session_id))
+        if len(seen) == 2:  # the owner PATCHes (a disk write) while the engine holds its own copy
+            m = store.load(mid)
+            m["team"]["lead"] = {"model": "opus", "effort": "max"}
+            store.save(m)
+        return await orig(mid, role, prompt, model=model, effort=effort, session_id=session_id, **kw)
+
+    eng = kit.eng()
+    eng.run_turn = spy
+    for _ in range(3):
+        asyncio.run(eng._turn("lead", "ideas"))
+    cmds = [c for r, c, _ in seen if r == "lead"]
+    arg = lambda c, f: c[c.index(f) + 1]
+    assert arg(cmds[1], "--model") == "haiku" and "--resume" in cmds[1]  # turn 2 was already on its way
+    assert arg(cmds[2], "--model") == "opus" and arg(cmds[2], "--effort") == "max"
+    assert "--resume" not in cmds[2] and store.load(kit.mid)["team"]["lead"]["model"] == "opus"

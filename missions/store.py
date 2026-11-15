@@ -47,16 +47,34 @@ def check_limits(lim):
             raise ValueError(f"bad limit {k}: {v!r}")
 
 
+def check_team(team):
+    """Exactly the four roles, each {model, effort} from MODELS and EFFORTS; else ValueError."""
+    if not isinstance(team, dict) or set(team) != set(ROLES):
+        raise ValueError(f"team needs exactly {list(ROLES)}")
+    for r in ROLES:
+        t = team[r]
+        if not isinstance(t, dict) or t.get("model") not in MODELS or t.get("effort") not in EFFORTS:
+            raise ValueError(f"bad team entry for {r}: {t}")
+
+
+DEFAULT_TEAM = {"lead": {"model": "opus", "effort": "high"}, "builder": {"model": "sonnet", "effort": "high"},
+                "doubter": {"model": "sonnet", "effort": "medium"}, "defender": {"model": "sonnet", "effort": "medium"}}
+
+
+def team_defaults() -> dict:
+    t = config.settings().get("team_defaults")
+    try:
+        check_team(t)
+        return t
+    except ValueError:
+        return DEFAULT_TEAM
+
+
 def new_mission(sentence: str, team: dict, limits: dict, test_months: str) -> dict:
     check_limits(limits)
-    if not isinstance(team, dict) or test_months not in ("team", "ask"):
+    if test_months not in ("team", "ask"):
         raise ValueError("bad team or test_months")
-    for r in ROLES:
-        t = team.get(r)
-        if not isinstance(t, dict):
-            raise ValueError(f"bad team entry for {r}: {t}")
-        if t.get("model") not in MODELS or t.get("effort") not in EFFORTS:
-            raise ValueError(f"bad team entry for {r}: {t}")
+    check_team(team)
     config.home().mkdir(parents=True, exist_ok=True)
     # mkdir is the claim: two callers cannot take the same id (shortcut: skips ids on a race)
     while True:
