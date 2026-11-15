@@ -88,5 +88,5 @@ def test_planted_number_stays_out(tmp_path, monkeypatch):
 def test_lead_brief_contract_spells_every_brief_field():
     from missions import briefing
     p = roles.prompt("lead", "brief", brief="b", board="x", chat="", ask="")
-    for k in ("goal", "kind", "target", "rule", "idea", "fixed", "may_change", "fewest_trades_week", "notes", *briefing.KINDS):
+    for k in ("goal", "kind", "target", "rule", "idea", "fixed", "may_change", "fewest_trades_week", "notes", "days", *briefing.KINDS):
         assert f'"{k}"' in p

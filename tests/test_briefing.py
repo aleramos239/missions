@@ -268,3 +268,24 @@ def test_briefing_turn_is_toolless(hb):
         return worker.Turn(text=block({"brief": GOOD}), session_id="s1", ok=True)
     run(briefing.next_step(mk(), run_turn=lead, hb=hb))
     assert seen and all(k.get("tools") is False for k in seen)
+
+
+def _g(**kw):
+    return {**GOOD, "goal": {**GOOD["goal"], **kw}}
+
+
+def test_days_accepted_and_carried(hb):
+    for d in (1, 5, 20):
+        assert briefing.check(_g(days=d), hb.accounts_) is None
+    assert briefing._clean(_g(days=5))["goal"]["days"] == 5
+    assert "days" not in briefing._clean(GOOD)["goal"]
+
+
+@pytest.mark.parametrize("d", [0, 21, 2.5, True, "5"])
+def test_days_refused(hb, d):
+    assert "whole number of weekdays" in briefing.check(_g(days=d), hb.accounts_)
+
+
+def test_days_refused_on_points_goal(hb):
+    b = {**GOOD, "goal": {"kind": "points", "target": 100, "days": 5}}
+    assert briefing.check(b, hb.accounts_) == "goal.days is for eval goals only"

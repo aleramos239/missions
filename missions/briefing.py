@@ -41,6 +41,10 @@ def check(brief, accounts):
             return "an eval target is a share between 0 and 1 (0.5, not 50)"
         if not isinstance(g.get("rule"), str) or g["rule"] not in {a.get("id") for a in accounts}:
             return f"goal.rule must be one of the open accounts: {[a.get('id') for a in accounts]}"
+        if "days" in g and (type(g["days"]) is not int or not 1 <= g["days"] <= 20):
+            return "goal.days must be a whole number of weekdays from 1 to 20"
+    elif "days" in g:
+        return "goal.days is for eval goals only"
     if not isinstance(brief.get("idea"), str) or not brief["idea"].strip():
         return "idea is missing"
     for k in ("fixed", "may_change"):
@@ -58,6 +62,8 @@ def _clean(b):
     goal = {"kind": g["kind"], "target": g["target"]}
     if g["kind"] == "eval":
         goal["rule"] = g["rule"]
+        if "days" in g:
+            goal["days"] = g["days"]
     return {"goal": goal, "idea": b["idea"].strip(), "fixed": b["fixed"], "may_change": b["may_change"],
             "fewest_trades_week": b["fewest_trades_week"], "notes": b["notes"]}
 
