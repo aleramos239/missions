@@ -56,6 +56,11 @@ def test_command_flags():
     assert worker.command(7, "lead", "haiku", "low", "S")[-2:] == ["--resume", "S"]
 
 
+def test_the_worker_may_read_a_long_tool_result(fake):
+    t, argv = fake([INIT, RESULT])
+    assert argv["max_mcp"] == "60000"
+
+
 def test_stream(fake):
     t, argv = fake([INIT, text("one"),
                     tool("mcp__homebase__backtest"), text("two"), RESULT])

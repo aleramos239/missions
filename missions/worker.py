@@ -58,6 +58,7 @@ async def run_turn(mid, role, prompt, *, model, effort, session_id=None, max_too
     try:
         p = await asyncio.create_subprocess_exec(*command(mid, role, model, effort, session_id, tools), prompt,
                                                   cwd=config.work_dir(mid, role), stdin=DEVNULL, stdout=PIPE,
+                                                  env={**os.environ, "MAX_MCP_OUTPUT_TOKENS": "60000"},
                                                   stderr=PIPE, limit=1 << 26, start_new_session=True)
     except OSError as e:
         t.why = f"crash: {e}"
