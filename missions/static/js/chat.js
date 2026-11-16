@@ -73,12 +73,12 @@ function openAsk(events) {
   return null;
 }
 
-function card(m, p) {
+export function card(m, p) {
   const b = p, g = b.goal, acct = b.account;
   const list = (xs) => (xs || []).map(esc).join(" · ") || "—";
   const r = (k, v) => `<div class="acct"><span class="nm grow">${k}</span><span class="kvi">${v}</span></div>`;
   return `<h2 class="hb-sec-h">The brief</h2><div class="mx-brief">`
-    + r("Goal", esc(goalText(g))) + r("Idea", esc(b.idea)) + r("Fixed", list(b.fixed)) + r("The team may change", list(b.may_change))
+    + r("Goal", esc(goalText(g))) + r("Exits", esc(b.exits || "hm40")) + r("Idea", esc(b.idea)) + r("Fixed", list(b.fixed)) + r("The team may change", list(b.may_change))
     + r("Fewest trades a week", esc(b.fewest_trades_week)) + r("Account", esc(acct ? acct.name || acct.id : "—"))
     + r("The firm bans", list(b.bans)) + r("Stops at", esc(stopsText(m.limits))) + r("Test months", esc(testMonths(m)))
     + (b.notes ? r("Notes", esc(b.notes)) : "")

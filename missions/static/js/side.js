@@ -3,7 +3,7 @@ import { STEP_WORD } from "./panel.js";
 
 export const PAGES = [["chat", "Chat", "mx-ico-chat"], ["run", "Running", "mx-ico-clock"], ["prog", "Progress", "mx-ico-chart"],
   ["best", "Best so far", "mx-ico-star"], ["heat", "Heat map", "mx-ico-grid"], ["pass", "Eval pass", "mx-ico-check"],
-  ["tested", "Tested", "mx-ico-hist"], ["luck", "Real or luck", "mx-ico-shield"]];
+  ["tested", "Tested", "mx-ico-hist"], ["luck", "Real or luck", "mx-ico-shield"], ["set", "Settings", "mx-ico-gear"]];
 const CHEV = '<svg class="sh-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"/></svg>';
 const DONE = ["achieved", "limit", "out_of_reach", "stopped"];
 

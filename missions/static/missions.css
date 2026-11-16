@@ -34,6 +34,7 @@ html.hb-apple .hb-side .sd.mx-ico-shield { --ico: var(--sf-shield); --ico-w: var
 html.hb-apple .hb-side .sd.mx-ico-check { --ico: var(--sf-check); --ico-w: var(--sf-check-w); --ico-h: var(--sf-check-h); }
 html.hb-apple .hb-side .sd.mx-ico-x { --ico: var(--sf-xmark); --ico-w: var(--sf-xmark-w); --ico-h: var(--sf-xmark-h); }
 html.hb-apple .hb-side .sd.mx-ico-clock { --ico: var(--sf-clock); --ico-w: var(--sf-clock-w); --ico-h: var(--sf-clock-h); }
+html.hb-apple .hb-side .sd.mx-ico-gear { --ico: var(--sf-gear); --ico-w: var(--sf-gear-w); --ico-h: var(--sf-gear-h); }
 
 /* the toolbar chip: the Desk paints it red for chart trading; here it is plain news */
 html.hb-apple .hb-ct-chip { background: var(--a-fill) !important; color: var(--a-label-2) !important; }
@@ -182,3 +183,4 @@ html.hb-apple .mx-needs { margin: 0 0 14px; padding: 10px 14px; border-radius: 1
 html.hb-apple .mx-needs > b { color: var(--a-orange); }
 html.hb-apple .hb-side .mx-mt small b.mx-needs-w { font-weight: 700; color: var(--a-orange); }
 html.hb-apple .hb-side .mx-needs-row .mx-mt b { color: var(--a-label); }
+html.hb-apple .hb-insp .f a.v { color: var(--a-label); text-decoration: underline; text-underline-offset: 2px; }

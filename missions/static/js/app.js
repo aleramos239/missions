@@ -15,6 +15,7 @@ import heat from "./heat.js";
 import evalpass from "./evalpass.js";
 import tested from "./tested.js";
 import luck from "./luck.js";
+import settings from "./settings.js";
 import conn from "./conn.js";
 import home from "./home.js";
 
@@ -71,7 +72,7 @@ function onEvent(e) {
 }
 
 // the result pages: each is { on: event types it redraws for, render(mission, el) }
-const PAGE = { run: running, prog: progress, best, heat, pass: evalpass, tested, luck };
+const PAGE = { run: running, prog: progress, best, heat, pass: evalpass, tested, luck, set: settings };
 const show = (pg, el, m = null) => { el.dataset.pg = S.page; return pg.render(m, el); };
 function showPage(fresh = false) {
   const pg = PAGE[S.page], el = $("#v-other");
