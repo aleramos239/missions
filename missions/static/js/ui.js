@@ -17,8 +17,11 @@ export const err = (e) => `<div class="mx-err">${esc(e.message || e)}</div>`;
 // Paint html into el once its data is here. A newer paint of the same el wins; a failure shows its words.
 export async function mount(el, build, bind) {
   const t = (el._t = (el._t || 0) + 1);
+  // an empty page reads as broken: a table takes Homebase a few seconds, so say it is loading
+  const wait = setTimeout(() => { if (t === el._t && !el.innerHTML) el.innerHTML = `<div class="mcap">Loading…</div>`; }, 300);
   let html;
   try { html = await build(); } catch (e) { html = err(e); bind = null; }
+  clearTimeout(wait);
   if (t !== el._t) return;
   el.innerHTML = html;
   if (bind) bind(el);

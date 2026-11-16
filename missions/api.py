@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import time
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
@@ -21,6 +22,7 @@ WARN = "This looks like a test-month number. The team must never see one. Send a
 NUMBERISH = re.compile(r"\d\s*(?:%|\$|pts?\b|points?\b|trades?\b)|\$\s*\d", re.I)
 _odds = {}  # (mid, name, box) -> {"done", "result"/"err"}: one computation at a time
 _odds_lock = threading.Lock()
+KEEP_S = 3600  # seconds a version's table / Monte Carlo answer is kept for the owner's pages (a finished version's never change)
 
 
 class NotFound(Exception):
@@ -343,17 +345,31 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
                  "box": board[v["version"]]["box"], "goal_value": board[v["version"]]["goal_value"], "why": v.get("why")}
                 for v in m["versions"]]
 
+    kept = {}  # (door call, mid, name[, box]) -> (at, task). A finished version's table and its Monte Carlo never change, so a
+    #            click asks the Judge once and going back to a page is instant. Forgotten after KEEP_S; a failure is never kept.
+
+    async def keep(what, *a):
+        now, k = time.monotonic(), (what, *a)
+        for old in [x for x, (at, _) in kept.items() if now - at > KEEP_S]:
+            del kept[old]
+        if k not in kept:
+            t = asyncio.ensure_future(asyncio.to_thread(getattr(hb, what), *a))
+            # a failure is dropped so the next click asks again (reading it also stops asyncio's "never retrieved" log)
+            t.add_done_callback(lambda t: (t.cancelled() or t.exception()) and kept.get(k, (0, None))[1] is t and kept.pop(k))
+            kept[k] = (now, t)
+        return await asyncio.shield(kept[k][1])  # one caller going away must not cancel the answer others wait for
+
     @app.get("/api/missions/{mid}/table")
     async def table(mid: int, name: str):
         _version(_mission(mid), name)
-        return await asyncio.to_thread(hb.table, mid, name)
+        return await keep("table", mid, name)
 
     @app.get("/api/missions/{mid}/box")
     async def box(mid: int, name: str, box: str):
         _version(_mission(mid), name)
-        t = await asyncio.to_thread(hb.table, mid, name)
+        t, mc = await asyncio.gather(keep("table", mid, name), keep("mc", mid, name, box))  # side by side
         row = next((r for r in t.get("rows", []) if str(r.get("box")) == box), None)
-        return {"row": row, "mc": await asyncio.to_thread(hb.mc, mid, name, box)}
+        return {"row": row, "mc": mc}
 
     @app.get("/api/missions/{mid}/odds")
     async def odds(mid: int, name: str, box: str):

@@ -29,6 +29,8 @@ let closeStream = null, timer = null, firstPaint = true;
 const go = (h) => { if (location.hash === h) route(); else location.hash = h; };
 const refreshList = async () => { S.list = await api("/api/missions"); paintSide(); };
 const paintSide = () => side.render($("#sideMissions"), S.list, S);
+// ask for the best version's table and Monte Carlo as soon as a mission is open: the server keeps them, so Best so far and Heat map open at once
+const warm = (m) => { const v = m.versions.find((x) => x.version === m.board.best && x.box != null); if (v) api(`/api/missions/${m.id}/box?name=${encodeURIComponent(v.name)}&box=${encodeURIComponent(v.box)}`).catch(() => {}); };
 
 function parse() {
   const p = location.hash.replace(/^#\/?/, "").split("/");
@@ -51,7 +53,7 @@ async function route() {
       [m, events] = await Promise.all([api(`/api/missions/${id}`), api(`/api/missions/${id}/events`)]);
     } catch (e) { if (me === seq) { S.id = null; S.page = "new"; go("#/new"); } return; }
     if (me !== seq) return; // a newer route started: it owns the page now
-    S.m = m; S.events = events;
+    S.m = m; S.events = events; warm(m);
     if (closeStream) closeStream();
     closeStream = sse.open(id, events.length ? events[events.length - 1].n : 0, onEvent);
   }
@@ -91,7 +93,7 @@ export function reload(fetchAgain = true) {
     try {
       const [m, list] = await Promise.all([api(`/api/missions/${id}`), api("/api/missions")]);
       if (S.id !== id) return;
-      S.m = m; S.list = list;
+      S.m = m; S.list = list; warm(m);
       if (m.status === "briefing" && S.page === "chat") S.page = "chat";
       paint(false);
       if (view() === "other") showPage();

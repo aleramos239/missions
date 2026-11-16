@@ -160,6 +160,41 @@ def test_tested_table_box_odds_refused():
     assert call("GET", f"/api/missions/{mid}/refused", fake=fake).json() == [{"why": "no"}]
 
 
+def test_table_and_mc_are_asked_once_and_a_failure_is_asked_again(monkeypatch):
+    mid = seeded()
+    real = {"rows": [{"box": 7, "cell": 7}], "pick": 7}
+
+    def on_one_app(fake, *paths):
+        async def go():
+            app = api.make_app(hb=fake)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=BASE) as c:
+                return [await c.get(p) if isinstance(p, str) else await p(c) for p in paths]
+        return asyncio.run(go())
+
+    t, b = f"/api/missions/{mid}/table?name=m1_v01", f"/api/missions/{mid}/box?name=m1_v01&box=7"
+    fake = FakeHB()
+    fake.tables["m1_v01"], fake.mcs[("m1_v01", "7")] = real, {"p": 1}
+    rs = on_one_app(fake, t, b, b, t)
+    assert [r.status_code for r in rs] == [200] * 4
+    assert rs[1].json() == rs[2].json() == {"row": {"box": 7, "cell": 7}, "mc": {"p": 1}}
+    assert [c[0] for c in fake.calls].count("table") == 1 and [c[0] for c in fake.calls].count("mc") == 1
+
+    fake = FakeHB()
+    fake.tables["m1_v01"] = FakeHB.Down("gone")
+
+    async def heal_then_get(c):
+        fake.tables["m1_v01"] = real
+        return await c.get(t)
+    first, second = on_one_app(fake, t, heal_then_get)
+    assert first.status_code == 503 and second.status_code == 200 and second.json()["pick"] == 7
+
+    monkeypatch.setattr(api, "KEEP_S", -1)
+    fake = FakeHB()
+    fake.tables["m1_v01"] = real
+    assert [r.status_code for r in on_one_app(fake, t, t)] == [200, 200]
+    assert [c[0] for c in fake.calls].count("table") == 2
+
+
 def test_odds_is_working_then_done():
     mid = seeded()
     fake = FakeHB()
