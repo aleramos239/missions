@@ -312,3 +312,10 @@ def test_a_years_goal_scores_its_weakest_recent_year():
     assert _goal_scalar({"kind": "years", "recent": [2025, 2026], "value": rows}) == 0.42
     assert _goal_scalar({"kind": "years", "recent": [2025, 2027], "value": rows}) == 0.0
     assert _goal_scalar({"kind": "net", "value": 5.0}) == 5.0
+
+
+def test_approve_carries_exits_to_homebase(hb):
+    mid = mk()
+    run(briefing.next_step(mid, run_turn=Lead(block({"brief": {**GOOD, "exits": "hm60"}})), hb=hb))
+    run(briefing.approve(mid, "Yes", hb=hb))
+    assert [c for c in hb.calls if c[0] == "write_brief"][-1][2]["exits"] == "hm60"

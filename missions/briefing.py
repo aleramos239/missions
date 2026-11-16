@@ -181,7 +181,7 @@ async def approve(mid, said, *, hb):
             raise ValueError("there is no valid brief to approve")
         await asyncio.to_thread(hb.write_brief, mid, {
             "approved": True, "owner_said": f"{said.strip()} (mission {mid}, {date.today()}: {m['sentence']})",
-            "test_months": m["test_months"], "goal": b["goal"]})
+            "test_months": m["test_months"], "goal": b["goal"], **({"exits": b["exits"]} if b.get("exits") else {})})
         busy = any(o["id"] != mid and o["status"] in BUSY for o in store.missions())
         m["status"] = "queued" if busy else "ready"
         store.save(m)

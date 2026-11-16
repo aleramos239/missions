@@ -12,7 +12,7 @@ from . import config, store
 
 OK_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 _children = {}  # pid -> Popen of reads this process started
-BRIEF_KEYS = {"approved", "owner_said", "test_months", "goal"}
+BRIEF_KEYS = {"approved", "owner_said", "test_months", "goal", "exits"}
 STOPPED = "the read stopped; the owner has the details"
 
 
