@@ -6,7 +6,7 @@ const WHO = { owner: "You", engine: "Tests", lead: "Lead", builder: "Builder", d
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "");
 const clock = (at) => new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 // the fixed steps on the line: Brief, Ideas, Build and run, Argue, Verdict, Test months
-const STEP_AT = { ideas: 1, build: 2, wait: 2, argue: 3, verdict: 4, read: 5 };
+const STEP_AT = { ideas: 1, build: 2, wait: 2, check: 2, stage: 1, argue: 3, verdict: 4, read: 5 };
 const LABELS = ["Brief", "Ideas", "Build and run", "Argue", "Verdict", "Test months"];
 const APPROVE = "Yes, start: the team may run heat maps, pick boxes by the score and read test months through the Judge";
 const APPROVE_ASK = "Yes, start: the team may run heat maps and pick boxes by the score; it asks me before the test months";

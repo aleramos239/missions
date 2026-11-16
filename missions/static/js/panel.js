@@ -1,20 +1,20 @@
-import { esc, money, pct, pts, statusWord } from "./fmt.js";
+import { esc, money, pct, pts, stageText, statusWord } from "./fmt.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
 const LIVE = ["running", "waiting_plan", "waiting_homebase"];
-export const STEP_WORD = { ideas: "Ideas", build: "Build and run", wait: "Waiting", argue: "Argue", verdict: "Verdict", read: "Test months" };
+export const STEP_WORD = { ideas: "Ideas", build: "Build and run", wait: "Waiting", argue: "Argue", verdict: "Verdict", read: "Test months", check: "Code check", stage: "Stage review" };
 const SHOW_RUN = [...LIVE, "paused", "waiting_owner"];
 // who does what at each fixed step
 export const DOING = { ideas: { lead: "planning the round" }, build: { builder: "building" }, wait: { builder: "waiting on a test" },
   argue: { doubter: "reading the results", defender: "arguing for it" }, verdict: { lead: "writing the verdict" },
-  read: { lead: "waiting on the Judge" } };
+  read: { lead: "waiting on the Judge" }, check: { builder: "checking the code" }, stage: { lead: "reviewing the stage" } };
 
 export const goalVal = (kind, v) => v == null ? "none yet" : kind === "eval" || kind === "years" ? pct(v) : kind === "points" ? `${pts(v)} pts` : money(v);
 export const goalText = (g) => g && g.kind ? (g.kind === "eval" ? `${pct(g.target)} pass` : g.kind === "years" ? `${pct(g.target)} win in ${(g.recent || []).join(", ")}, other years green` : goalVal(g.kind, g.target)) + (g.rule ? ` · ${g.rule}` : "") : "not set";
 export function stopsText(l) {
   l = l || {};
   if (l.until_goal) return "the goal, or your Stop";
-  const on = [l.tries && `${l.tries.n} tries`, l.hours && `${l.hours.n} h`, l.usage && `${l.usage.pct} % of plan`].filter(Boolean);
+  const on = [l.tries && `${l.tries.n} tries${l.stages && l.stages.n > 1 ? ` a stage, ${l.stages.n} stages` : ""}`, l.hours && `${l.hours.n} h`, l.usage && `${l.usage.pct} % of plan`].filter(Boolean);
   return on.length ? `the goal, ${on.join(", ")}, or your Stop` : "the goal, or your Stop";
 }
 export const testMonths = (m) => m.test_months === "ask" ? "Ask me first" : m.reads ? `${m.reads} read` : "Sealed";
@@ -24,7 +24,7 @@ export function render(d) {
   const r = d.right, g = d.board.goal, b = r.best, t = d.pending.tries || d.board.tries;
   document.getElementById("pMission").innerHTML = fig("Goal", goalText(g))
     + fig("Best so far", b ? `${goalVal(g.kind, b.goal_value)} · ${b.version}` : "none yet") + fig("Luck bar", r.luck)
-    + fig("Tries", `${t.mission}${d.limits && d.limits.tries ? ` of ${d.limits.tries.n}` : ""}`) + fig("Test months", testMonths(d));
+    + fig(d.board.stage && d.board.stage.of > 1 ? "Stage" : "Tries", d.board.stage ? stageText(d.board.stage) : `${t.mission}`) + fig("Test months", testMonths(d));
   const live = SHOW_RUN.includes(d.status), step = (DOING[d.step] || {});
   document.getElementById("pNow").innerHTML = Object.entries(NAMES).map(([k, n]) =>
     fig(n, !live ? statusWord(d) : step[k] || "idle", n)).join("") + fig("Judge", live && d.step === "wait" ? "running the table" : "idle", "Judge");

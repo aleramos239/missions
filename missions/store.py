@@ -29,11 +29,11 @@ def events_path(mid):
     return mdir(mid) / "events.jsonl"
 
 
-LIMITS = ("tries", "hours", "usage", "until_goal")
+LIMITS = ("tries", "stages", "hours", "usage", "until_goal")
 
 
 def check_limits(lim):
-    """tries: {"n": int > 0}; hours: {"n": number > 0}; usage: {"pct": number > 0}; until_goal: true or false. Anything else is a ValueError."""
+    """tries: {"n": int > 0} (per stage); stages: {"n": int > 0}; hours: {"n": number > 0}; usage: {"pct": number > 0}; until_goal: true or false. Anything else is a ValueError."""
     if not isinstance(lim, dict) or set(lim) - set(LIMITS):
         raise ValueError(f"limits is an object with only {list(LIMITS)}")
     for k, v in lim.items():
@@ -42,7 +42,7 @@ def check_limits(lim):
         else:
             f = "pct" if k == "usage" else "n"
             x = v.get(f) if isinstance(v, dict) and set(v) == {f} else None
-            ok = isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0 and (k != "tries" or isinstance(x, int))
+            ok = isinstance(x, (int, float)) and not isinstance(x, bool) and x > 0 and (k not in ("tries", "stages") or isinstance(x, int))
         if not ok:
             raise ValueError(f"bad limit {k}: {v!r}")
 

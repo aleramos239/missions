@@ -55,3 +55,9 @@ test("plain numbers", () => {
   assert.equal(f.plain(null), "—");
   assert.equal(f.plain(3.4, 1), "3.4");
 });
+
+test("stageText", async () => {
+  const { stageText } = await import("../../missions/static/js/fmt.js");
+  assert.equal(stageText({ n: 2, of: 3, try: 5, per: 20 }), "Stage 2 of 3 · try 5 of 20");
+  assert.equal(stageText({ n: 1, of: 1, try: 5, per: 40 }), "Try 5 of 40");
+});

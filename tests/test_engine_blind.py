@@ -36,7 +36,7 @@ def stop_at(eng, kit, n):
     def rs():
         if eng.m["round"] >= n:
             engine.stop(kit.mid)
-        orig()
+        return orig()
     eng._round_start = rs
 
 

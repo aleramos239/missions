@@ -67,7 +67,7 @@ def test_a_near_copy_both_versions_freeze_and_the_mission_goes_on(kit):
     def rs():  # stop after two reads: the mission was still going on
         if eng.m["round"] >= 2:
             engine.stop(kit.mid)
-        orig()
+        return orig()
     eng._round_start = rs
     assert run(eng.run()) == "stopped"
     m = store.load(kit.mid)

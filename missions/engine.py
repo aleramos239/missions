@@ -4,12 +4,14 @@ Blind: worker text is built from the brief, the vault digest, the door's table/g
 the read's one line {held, line, close}. Nothing here asks Homebase for the owner's files."""
 import asyncio
 import copy
+import json
 import re
 import time
 
 from . import digest as _digest, hb as _hb, roles, store, system as _system, worker, wrapup
 
-STEPS = ("ideas", "build", "wait", "argue", "verdict", "read")
+STEPS = ("ideas", "build", "wait", "check", "argue", "verdict", "read", "stage")
+NO_TRY = "no box has a trade"  # a version the Judge dropped for this tested nothing: not a try
 ROLES3 = ("builder", "doubter", "defender")
 WORKING = ("running", "waiting_plan", "waiting_homebase")
 JSON_RETRY = "Your last message had no json block I could read. End your message with the json block."
@@ -258,6 +260,9 @@ class Engine:
         scored = [v for v in out if v["goal_value"] is not None and v["state"] not in ("dropped", "spent")]
         best = max(scored, key=lambda v: v["goal_value"])["version"] if scored else None
         return {"goal": {"kind": g.get("kind"), "target": g.get("target"), "rule": g.get("rule"), "recent": g.get("recent")}, "round": m["round"],
+                "stage": {"n": self._stage_n(), "of": self._stages(), "try": self._tries_used(),
+                           "per": ((m["limits"] or {}).get("tries") or {}).get("n"),
+                           "focus": (m["pending"].get("focus") or {}).get("text")},
                 "tries": tries, "versions": out, "best": best, "reads": m["reads"]}
 
     async def _refresh_tries(self, family):
@@ -357,8 +362,7 @@ class Engine:
             self._status("running")
             while True:
                 if self.m["step"] is None:
-                    self._round_start()
-                    self._goto("ideas")
+                    self._goto(self._round_start())
                 await getattr(self, "_" + self.m["step"])()
         except _Done as d:
             self._status(d.status)
@@ -374,18 +378,109 @@ class Engine:
             _active.discard(self.mid)
             self.system.awake(False)
 
+    # ---- stages: the tries limit is per stage; a full stage ends in the Lead's review, not in the end of the mission
+
+    def _stage_n(self):
+        return self.m.get("stage", 1)
+
+    def _stages(self):
+        return ((self.m["limits"] or {}).get("stages") or {}).get("n", 1)
+
+    def _stage_versions(self):
+        return [v for v in self.m["versions"] if v.get("stage", 1) == self._stage_n()]
+
+    def _tries_used(self):
+        return sum(1 for v in self._stage_versions() if not (v["state"] == "dropped" and NO_TRY in (v.get("why") or "")))
+
     def _round_start(self):
+        """Returns the first step of the next round: "stage" when a stage just used its tries and another may follow."""
         m = self.m
         if _asked(self.mid) == "stop":
             raise _Done("stopped")
-        if not (m["limits"] or {}).get("until_goal") and self.system.limit_hit(m, len(m["versions"])):
-            raise _Done("limit")
+        if not (m["limits"] or {}).get("until_goal") and (hit := self.system.limit_hit(m, self._tries_used())):
+            if hit != "tries" or self._stage_n() >= self._stages() or self.system.limit_hit(m, 0):
+                raise _Done("limit")
+            if _asked(self.mid) == "pause":
+                raise _Done("paused")
+            return "stage"
         if m["empty_rounds"] >= 2:
             raise _Done("out_of_reach")
         if _asked(self.mid) == "pause":
             raise _Done("paused")
+        if m["round"] == 0 and (b := (m["brief"] or {}).get("base")) and not m["pending"].get("focus"):
+            self._base_focus(f"m{b['mission']}_{b['version']}", b["version"], None, b["mission"])
         m["round"] += 1
         m["sessions"] = {}
+        return "ideas"
+
+    def _base_focus(self, name, version, idea, mission=None):
+        """The stage's focus: one base version's idea and settings (narrow). Read-only reads of the other mission's files."""
+        if idea is None:
+            try:
+                idea = next((v.get("idea") for v in store.load(mission)["versions"] if v["version"] == version), "")
+            except (OSError, ValueError, KeyError):
+                idea = ""
+        spec = self.hb.idea_spec(name)
+        text = f"Work only on this idea: variations of it. Base {version}: {idea or 'see its settings'}."
+        if spec:
+            text += f" Its settings: {json.dumps(spec)[:2000]}"
+        self.m["pending"]["focus"] = {"stage": self._stage_n(), "mode": "narrow", "base": version, "text": text}
+        self._save()
+
+    def _fresh_focus(self):
+        old = [f"{v['version']}: {(v.get('idea') or '')[:150]} ({v.get('family')})"
+               + (f", dropped: {v['why']}" if v.get("why") else "") for v in self.m["versions"]][-40:]
+        self.m["pending"]["focus"] = {"stage": self._stage_n(), "mode": "fresh", "base": None, "text":
+                                      "Start from new ideas, not variations of these, which were tried and did not work: "
+                                      + " | ".join(old)}
+
+    def _stage_ask(self):
+        rows = [f"{v['version']}: {(v.get('idea') or '')[:150]} ({v.get('family')}), "
+                + (f"dropped: {v.get('why')}" if v["state"] == "dropped" else f"{v['state']}, box {v.get('box_label')}, "
+                   f"goal {_goal_scalar((v.get('gate') or {}).get('goal') or {})}, lines failed "
+                   f"{[x['line'] for x in (v.get('gate') or {}).get('lines', []) if not x.get('ok')]}")
+                for v in self._stage_versions()]
+        return f"Stage {self._stage_n()} of {self._stages()} is over: {self._tries_used()} tries used.\n" + "\n".join(rows)
+
+    def _stage_why(self, st):
+        if not isinstance(st, dict) or st.get("next") not in ("narrow", "fresh", "stop"):
+            return 'stage.next must be "narrow", "fresh" or "stop"'
+        if st["next"] == "narrow" and not any(st.get("base") in (v["version"], v["name"]) and v.get("gate")
+                                              for v in self.m["versions"]):
+            return "a narrow stage needs a base that is one of the scored versions"
+
+    async def _stage(self):
+        m, p = self.m, self.m["pending"]
+        ask = self._stage_ask()
+        for _ in (0, 1):
+            t, rep = await self._turn("lead", "stage", ask)
+            if t is None:
+                break
+            st = (rep or {}).get("stage")
+            if not (why := self._stage_why(st)):
+                break
+            ask = f"Your answer was refused: {why}. Answer again.\n\n{ask}"
+        else:
+            t = None
+        if t is None:
+            raise RuntimeError("The Lead's stage review failed. Check the Lead, then resume.")
+        if isinstance(st.get("why"), str):
+            self._say("lead", st["why"], for_workers=False, data={"to_owner": True})
+        n = self._stage_n()
+        if st["next"] == "stop":
+            self._say("engine", f"Stage {n} is over. The Lead stops the mission.", for_workers=False)
+            raise _Done("limit")
+        m["stage"] = n + 1
+        if st["next"] == "narrow":
+            v = self._v(st["base"])
+            self._base_focus(v["name"], v["version"], v.get("idea"))
+        else:
+            self._fresh_focus()
+        p["next"] = p["fixes"] = None
+        m["empty_rounds"] = 0
+        self._say("engine", f"Stage {n} is over. Stage {n + 1} of {self._stages()}: "
+                  + (f"narrow on {st['base']}." if st["next"] == "narrow" else "fresh ideas."), for_workers=False)
+        self._goto(None)
 
     # ---- 1. ideas
 
@@ -467,7 +562,8 @@ class Engine:
         self.m["versions"].append({"name": row["name"], "version": row["version"], "round": self.m["round"],
                                    "family": await asyncio.to_thread(self.hb.family_of, row["name"]) or row["family"],
                                    "job_id": made.get("job_id") or builder_job, "state": "running",
-                                   "since": self.clock(), "idea": row["idea"]})
+                                   "since": self.clock(), "idea": row["idea"],
+                                   "stage": self._stage_n()})
         self._save()
         return True
 
@@ -528,6 +624,16 @@ class Engine:
             self._save()
             if self._round_versions("running"):
                 await self._nap(JOB_POLL)
+        self._goto("check")
+
+    # ---- 3b. code check: only now, with the tables done, can the Builder's check find the table on file
+
+    async def _check(self):
+        vs = [v for v in self._round_versions("done")]
+        if vs:
+            ask = "Run blueprint_code_check on each of these versions:\n" + "\n".join(
+                f"{v['version']} ({v['name']})" for v in vs)
+            await self._turn("builder", "check", ask, max_tool_calls=40, timeout_s=1800)
         self._goto("argue")
 
     # ---- 4. argue

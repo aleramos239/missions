@@ -11,8 +11,8 @@ _C = {
     ("lead", "brief"): ('{"ask": {"q": "...", "options": ["...", "..."]}} to ask the owner one thing, '
                         'or, when the brief is ready, exactly this shape: {"brief": {"goal": {"kind": "eval" | "points" | '
                         '"net" | "years", "target": 0.5, "rule": "<an account id from the board, eval only>", "days": 10}, "idea": "...", '
-                        '"exits": "hm40", "fixed": ["..."], "may_change": ["..."], "fewest_trades_week": 2, "notes": "..."}} '
-                        '(exits: hm40 default; hm60 adds fixed-point stops 15/25/40/60 pts, only when the owner asks for fixed points; an eval target is a share 0-1; points and net targets are numbers above 0; days: eval only, the weekdays the eval must pass within (default 10); '
+                        '"exits": "hm40", "target_r": 2, "base": {"mission": 3, "version": "v23"}, "fixed": ["..."], "may_change": ["..."], "fewest_trades_week": 2, "notes": "..."}} '
+                        '(target_r: optional, the R target the goal is about, one of 0.5, 0.75, 1, 1.5, 2 (2 for a 1:2 goal); base: optional, only to start already narrowed on a version of an earlier mission, {"mission": <id>, "version": "vNN"}; exits: hm40 default; hm60 adds fixed-point stops 15/25/40/60 pts, only when the owner asks for fixed points; an eval target is a share 0-1; points and net targets are numbers above 0; days: eval only, the weekdays the eval must pass within (default 10); '
                         'years: {"kind": "years", "recent": [2025, 2026], "win_min": 0.40, "rest": "green"}: recent years\' full-target win rate at least win_min, every other year net above 0, no target)'),
     ("builder", "ideas"): _IDEAS, ("doubter", "ideas"): _IDEAS, ("defender", "ideas"): _IDEAS,
     ("lead", "ideas"): ('{"plan": [{"version": "v08", "idea": "...", "family": "...", "why": "..."}]} '
@@ -24,11 +24,20 @@ _C = {
                             '"fixes": [{"idea": "...", "family": "...", "why": "..."}]}'),
     ("lead", "verdict"): '{"to_owner": "<two plain sentences>", "next": "<what the next round tries>"}',
 }
+_C[("lead", "stage")] = ('{"stage": {"next": "narrow" | "fresh" | "stop", "base": "v23", "why": "..."}} '
+                         "(narrow: the next stage works only on variations of one scored version, base is required and must be one "
+                         "of the scored versions; fresh: the next stage starts from new ideas, no base; stop: the mission ends; "
+                         "why: two plain sentences)")
+_C[("builder", "check")] = '{"checked": ["v08"], "failed": [{"version": "v09", "why": "..."}]}'
 _C[("lead", "read")] = ('{"why": "..."} (advice only: plain words first, say what the Judge\'s one-line answer means '
                         "and what the next round could try. You cannot stop the mission)")
 _OWNER = '{"reply": "..."}'
 _STEPS = {"brief": "Write the brief with the owner.", "ideas": "Step: ideas. Write your angles alone.",
           "build": "Step: build. Make the planned versions and start their tables.",
+          "check": "Step: code check. Their tables are done. Run `blueprint_code_check` on each version named below, one call each, then stop.",
+          "stage": ("Step: stage review. The tries of this stage are used. Stop, look at everything: what worked, what did not. "
+                    "If nothing worked, the next stage restarts from zero with fresh ideas. If one idea worked, the next stage works "
+                    "only on that idea. Or stop the mission."),
           "argue": "Step: argue.", "verdict": "Step: verdict. Sum up the round.",
           "read": "Step: read. The Judge answered in one line (held, which line, or close). Say what comes next.",
           "owner": "The owner wrote to you. Answer him."}
@@ -41,8 +50,10 @@ def _read(name):
 def prompt(role, step, *, brief, board, chat, ask, digest=None) -> str:
     if role not in ("lead", "builder", "doubter", "defender") or step not in _STEPS:
         raise ValueError(f"bad role or step: {role} {step}")
-    if step == "read" and role != "lead":
-        raise ValueError(f"only the lead speaks at read: {role}")
+    if step in ("read", "stage") and role != "lead":
+        raise ValueError(f"only the lead speaks at {step}: {role}")
+    if step == "check" and role != "builder":
+        raise ValueError(f"only the builder speaks at check: {role}")
     contract = _OWNER if step == "owner" else _C.get((role, step))
     if role == "lead" and step == "owner":
         contract += ' (the Lead may add "plan_change": "...")'

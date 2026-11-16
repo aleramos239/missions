@@ -9,6 +9,7 @@ QUESTIONS_MAX = 6
 KINDS = ("eval", "points", "net", "years")
 RETRY = "Your last answer was refused: {why}. Fix it and answer again."
 NOW = "You have asked enough: write the brief now (the {\"brief\": {...}} block), no more questions."
+TARGETS_R = (0.5, 0.75, 1, 1.5, 2)
 BUSY = ("running", "paused", "waiting_plan", "waiting_homebase", "waiting_owner")
 
 
@@ -57,6 +58,19 @@ def check(brief, accounts):
         return "goal.days is for eval goals only"
     if brief.get("exits", "hm40") not in ("hm40", "hm60"):
         return "exits must be hm40 or hm60"
+    if "target_r" in brief and (not _num(brief["target_r"]) or brief["target_r"] not in TARGETS_R):
+        return f"target_r must be one of {list(TARGETS_R)}"
+    if "base" in brief:
+        b = brief["base"]
+        if not (isinstance(b, dict) and set(b) == {"mission", "version"} and type(b["mission"]) is int
+                and isinstance(b["version"], str)):
+            return 'base must be {"mission": <id>, "version": "vNN"}'
+        try:
+            ok = any(v["version"] == b["version"] for v in store.load(b["mission"])["versions"])
+        except (OSError, ValueError, KeyError):
+            ok = False
+        if not ok:
+            return f"base: mission {b['mission']} has no version {b['version']}"
     if not isinstance(brief.get("idea"), str) or not brief["idea"].strip():
         return "idea is missing"
     for k in ("fixed", "may_change"):
@@ -80,7 +94,7 @@ def _clean(b):
             goal["days"] = g["days"]
     return {"goal": goal, "idea": b["idea"].strip(), "fixed": b["fixed"], "may_change": b["may_change"],
             "fewest_trades_week": b["fewest_trades_week"], "notes": b["notes"],
-            **({"exits": b["exits"]} if "exits" in b else {})}
+            **{k: b[k] for k in ("exits", "target_r", "base") if k in b}}
 
 
 def _ask_ok(a):
@@ -181,7 +195,7 @@ async def approve(mid, said, *, hb):
             raise ValueError("there is no valid brief to approve")
         await asyncio.to_thread(hb.write_brief, mid, {
             "approved": True, "owner_said": f"{said.strip()} (mission {mid}, {date.today()}: {m['sentence']})",
-            "test_months": m["test_months"], "goal": b["goal"], **({"exits": b["exits"]} if b.get("exits") else {})})
+            "test_months": m["test_months"], "goal": b["goal"], **{k: b[k] for k in ("exits", "target_r") if b.get(k)}})
         busy = any(o["id"] != mid and o["status"] in BUSY for o in store.missions())
         m["status"] = "queued" if busy else "ready"
         store.save(m)

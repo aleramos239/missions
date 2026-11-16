@@ -89,6 +89,7 @@ async def wait_for_plan(resets_at, *, sleep, now=None) -> None:
 
 
 def limit_hit(m, tries_mission):
+    """tries_mission: the tries of the stage now running (the limit is per stage)."""
     lim = m.get("limits") or {}
     if lim.get("until_goal"):
         return None

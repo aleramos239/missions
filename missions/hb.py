@@ -12,7 +12,7 @@ from . import config, store
 
 OK_NAME = re.compile(r"^[A-Za-z0-9_.-]+$")
 _children = {}  # pid -> Popen of reads this process started
-BRIEF_KEYS = {"approved", "owner_said", "test_months", "goal", "exits"}
+BRIEF_KEYS = {"approved", "owner_said", "test_months", "goal", "exits", "target_r"}
 STOPPED = "the read stopped; the owner has the details"
 
 
@@ -187,6 +187,14 @@ def family_of(name):
         if fam:
             return fam
     return None
+
+
+def idea_spec(name):
+    """A version's saved settings (its spec.json), read-only; None when there is none."""
+    try:
+        return json.loads((config.ideas_root() / _name(name) / "spec.json").read_text())
+    except (OSError, ValueError):
+        return None
 
 
 def job(job_id):

@@ -11,7 +11,7 @@ class FakeHB:
         self.started = []
         self.tries_, self.odds_, self.mcs, self.families, self.made_ = {}, {}, {}, {}, {}
         self.briefs, self.ledgers, self.owner_files = {}, {}, {}
-        self.accounts_ = []
+        self.accounts_, self.specs = [], {}
         self.slots_ = {"cap": 4, "running": 0}
         self.health_ = {"chart_service": True, "door": True, "claude": "2.1.321"}
         self.reach = _Reach(self)  # fake.reach[family] is filled; hb.reach(mid, family) is called
@@ -71,6 +71,10 @@ class FakeHB:
     def family_of(self, name):
         self.calls.append(("family_of", name))
         return self.families.get(name)
+
+    def idea_spec(self, name):
+        self.calls.append(("idea_spec", name))
+        return self.specs.get(name)
 
     def job(self, job_id):
         self.calls.append(("job", job_id))

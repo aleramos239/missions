@@ -49,9 +49,9 @@ class Turns:
 
     @staticmethod
     def step_of(prompt):
-        for k in ("owner wrote", "Step: ideas", "Step: build", "Step: argue", "Step: verdict", "Step: read"):
+        for k in ("owner wrote", "Step: ideas", "Step: build", "Step: code check", "Step: stage review", "Step: argue", "Step: verdict", "Step: read"):
             if k in prompt:
-                return {"owner wrote": "owner"}.get(k, k[6:])
+                return {"owner wrote": "owner", "Step: code check": "check", "Step: stage review": "stage"}.get(k, k[6:])
 
     def default(self, role, step, prompt):
         n = self.n
@@ -66,6 +66,10 @@ class Turns:
                 if (nm, "12") not in self.fake.gates:
                     set_fake(self.fake, self.mid, n=nm)
             return {"built": [{"version": nm[-3:], "name": nm, "job_id": "j1"} for nm in names], "failed": []}
+        if step == "check":
+            return {"checked": re.findall(r"v\d\d", prompt.split("# Asked of you")[-1]), "failed": []}
+        if step == "stage":
+            return {"stage": {"next": "stop", "why": "enough"}}
         if step == "argue" and role == "doubter":
             return {"claims": [{"version": "v01", "charge": "One year carries it", "say": "2023 carries it"}]}
         if step == "argue":
@@ -143,14 +147,14 @@ def round_then_stop(kit, **kw):
     def rs():
         if eng.m["round"] >= 1:
             engine.stop(kit.mid)
-        orig()
+        return orig()
     eng._round_start = rs
     return eng
 
 
 def test_a_round_runs_the_steps_in_order_and_no_step_is_skipped(kit):
     assert run(round_then_stop(kit).run()) == "stopped"
-    assert steps(kit.mid) == list(engine.STEPS)[:3] + ["argue", "verdict", "read"]
+    assert steps(kit.mid) == ["ideas", "build", "wait", "check", "argue", "verdict", "read"]
     assert [t[:2] for t in kit.turns.log if t[1] == "argue"] == [("doubter", "argue"), ("defender", "argue"),
                                                                  ("doubter", "argue")]
 
@@ -208,7 +212,7 @@ def test_no_worker_runs_while_jobs_run(kit):
     run(round_then_stop(kit).run())
     log = [t[:2] for t in kit.turns.log]
     i = max(k for k, t in enumerate(log) if t[1] == "build")
-    assert log[i + 1][1] == "argue"
+    assert log[i + 1][1] == "check" and log[i + 2][1] == "argue"
     assert len([c for c in kit.fake.calls if c[0] == "job"]) >= 3
     assert any(e["type"] == "progress" for e in store.events(kit.mid))
 
@@ -301,7 +305,7 @@ def test_plan_used_up_waits_and_reruns_the_same_turn(kit):
     def rs():
         if eng.m["round"] >= 1:
             engine.stop(kit.mid)
-        orig()
+        return orig()
     eng._round_start = rs
     run(eng.run())
     assert Sys.waited == [555]
@@ -359,7 +363,7 @@ def test_a_text_to_the_lead_during_a_wait_gets_an_answer_at_once(kit):
     def rs():
         if eng.m["round"] >= 1:
             engine.stop(kit.mid)
-        orig_rs()
+        return orig_rs()
     eng._round_start = rs
     run(eng.run())
     own = [t for t in kit.turns.log if t[1] == "owner"]
@@ -412,7 +416,7 @@ def stopper(eng, kit, n=1):
     def rs():
         if eng.m["round"] >= n:
             engine.stop(kit.mid)
-        orig()
+        return orig()
     eng._round_start = rs
     return eng
 

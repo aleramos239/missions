@@ -26,3 +26,6 @@ export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&am
 // a signed number with d decimals (Sharpe as Homebase gives it); an hours-and-minutes length of time
 export const dec = (v, d = 2) => (ok(v) ? `${sign(v, d)}${num(v, d)}` : DASH);
 export const hm = (s) => (ok(s) ? (s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`) : DASH);
+
+// "Stage 2 of 3 · try 5 of 20" (an old mission has one stage: "Try 5 of 40")
+export const stageText = (s) => s ? `${s.of > 1 ? `Stage ${s.n} of ${s.of} · ` : ""}${s.of > 1 ? "try" : "Try"} ${s.try}${s.per ? ` of ${s.per}` : ""}` : "";

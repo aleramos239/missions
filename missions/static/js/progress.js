@@ -1,4 +1,4 @@
-import { esc, pct, hm } from "./fmt.js";
+import { esc, pct, hm, stageText } from "./fmt.js";
 import { goalVal, goalText } from "./panel.js";
 import { title, sec, group, acct, mount } from "./ui.js";
 
@@ -33,7 +33,7 @@ export default {
         acct({ nm: "Best so far", val: r.best ? `${goalVal(g.kind, r.best.goal_value)} · ${r.best.version}` : "none yet" }),
         acct({ nm: "Luck bar", val: r.luck }),
         acct({ nm: "Goal", val: goalText(g) }),
-        acct({ nm: "Tries used", val: `${b.tries.mission}${lim.tries ? ` of ${lim.tries.n}` : ""}` }),
+        acct({ nm: b.stage && b.stage.of > 1 ? "Stage" : "Tries used", val: b.stage ? stageText(b.stage) : `${b.tries.mission}` }),
         acct({ nm: "Time used", val: `${hm(m.run_seconds)}${lim.hours ? ` of ${lim.hours.n} h` : ""}` })]);
       const head = r.best ? `${goalVal(g.kind, r.best.goal_value)} of ${goalVal(g.kind, g.target)}.` : "Nothing scored yet.";
       return title(head, r.best ? `Best so far: ${r.best.version}${r.best.box ? ", box " + r.best.box.split(" · ")[1] : ""}. ${scored} ${scored === 1 ? "try" : "tries"} scored.` : "The first table is still running.")
