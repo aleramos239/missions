@@ -1,7 +1,7 @@
 import { statusWord, canDelete, deleteAsk } from "./fmt.js";
 import { api } from "./net.js";
 import { goalVal } from "./panel.js";
-import { title, group, acct, mount } from "./ui.js";
+import { title, group, acct, mount, sure, tell } from "./ui.js";
 
 // the result line: what the mission ended with, else its best so far
 function line(d) {
@@ -25,8 +25,8 @@ export default {
       el.onclick = async (e) => {
         const b = e.target.closest("[data-del]");
         if (!b) return open(e.target);
-        if (!confirm(deleteAsk(b.dataset.del))) return;
-        try { await api(`/api/missions/${b.dataset.del}`, { method: "DELETE" }); } catch (x) { return alert(x.message); }
+        if (!(await sure(deleteAsk(b.dataset.del), { yes: "Delete", no: "Keep" }))) return;
+        try { await api(`/api/missions/${b.dataset.del}`, { method: "DELETE" }); } catch (x) { return tell(x.message); }
         location.reload();
       };
       el.onkeydown = (e) => { if (e.key === "Enter") open(e.target); };

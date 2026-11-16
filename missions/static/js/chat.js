@@ -1,4 +1,5 @@
 import { esc } from "./fmt.js";
+import { sure, tell } from "./ui.js";
 import { goalText, goalVal, stopsText, testMonths } from "./panel.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -89,29 +90,18 @@ export async function renderBrief(S, api) {
   }
 }
 
-function warn(text) {
-  return new Promise((done) => {
-    const d = document.createElement("div"); d.className = "mx-warn"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");
-    d.innerHTML = `<div><p>${esc(text)}</p><div class="row"><button class="btn btn-outline btn-sm" type="button" data-r="0">Don't send</button><button class="btn btn-default btn-sm" type="button" data-r="1">Send anyway</button></div></div>`;
-    d.onclick = (e) => { const b = e.target.closest("[data-r]"); if (b) { d.remove(); done(b.dataset.r === "1"); } };
-    const no = d.querySelector("[data-r='0']");
-    d.onkeydown = (e) => { if (e.key === "Escape") { d.remove(); done(false); } };
-    document.body.append(d); no.focus();
-  });
-}
-
 export function init({ S, api, reload }) {
   $("#who").onchange = filter;
   const say = async (to, text, sure) => {
     const out = await api(`/api/missions/${S.id}/chat`, { method: "POST", body: { to, text, ...(sure ? { sure: true } : {}) } });
-    if (out.warn) return (await warn(out.warn)) ? say(to, text, true) : false;
+    if (out.warn) return (await sure(out.warn, { yes: "Send anyway", no: "Don't send" })) ? say(to, text, true) : false;
     if (out.n && !S.events.some((e) => e.n === out.n)) { S.events.push(out); reload(false); }
     return true;
   };
   $("#compose").onsubmit = async (e) => {
     e.preventDefault();
     const text = $("#msg").value.trim(); if (!text) return;
-    try { if (await say($("#to").value, text)) $("#msg").value = ""; } catch (x) { alert(x.message); }
+    try { if (await say($("#to").value, text)) $("#msg").value = ""; } catch (x) { tell(x.message); }
   };
   const answer = async (text) => {
     const err = $("#briefErr"); err.hidden = true;

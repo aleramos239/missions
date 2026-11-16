@@ -1,6 +1,6 @@
 import { esc } from "./fmt.js";
 import { api } from "./net.js";
-import { acct, sec, group, mount } from "./ui.js";
+import { acct, sec, group, mount, tell } from "./ui.js";
 import { costLine, readTeam, roleRow, wire } from "./team.js";
 
 const ROLES = [["lead", "Lead"], ["builder", "Builder"], ["doubter", "Doubter"], ["defender", "Defender"]];
@@ -27,11 +27,11 @@ export default {
       return sec("Claude", claude) + sec("Team defaults", team, "Most to least expensive: Fable, Opus, Sonnet, Haiku. Higher effort thinks longer and costs more.") + sec("The Lab", lab) + sec("Alerts", ntfy, "") + `<div class="mcap">The trading server is never used. Missions runs nothing there.</div>`;
     }, (el) => {
       const save = (btn, input, key) => (el.querySelector(btn).onclick = async () => {
-        try { await api("/api/connections", { method: "POST", body: { [key]: el.querySelector(input).value.trim() } }); el.querySelector(btn).textContent = "Saved"; } catch (e) { alert(e.message); }
+        try { await api("/api/connections", { method: "POST", body: { [key]: el.querySelector(input).value.trim() } }); el.querySelector(btn).textContent = "Saved"; } catch (e) { tell(e.message); }
       });
       wire(el.querySelector("#tdRows"), (_r, m) => costLine(m));
       el.querySelector("#tdSave").onclick = async (e) => {
-        try { await api("/api/team-defaults", { method: "PUT", body: readTeam(el.querySelector("#tdRows")) }); e.target.textContent = "Saved"; } catch (x) { alert(x.message); }
+        try { await api("/api/team-defaults", { method: "PUT", body: readTeam(el.querySelector("#tdRows")) }); e.target.textContent = "Saved"; } catch (x) { tell(x.message); }
       };
       save("#cPathSave", "#cPath", "claude");
       save("#cNtfySave", "#cNtfy", "ntfy_topic");

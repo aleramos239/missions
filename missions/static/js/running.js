@@ -2,7 +2,7 @@ import { esc, pct, ago, hm } from "./fmt.js";
 import { api } from "./net.js";
 import { DOING } from "./panel.js";
 import { editing, readTeam, roleRow, wire } from "./team.js";
-import { title, sec, group, acct, mount } from "./ui.js";
+import { title, sec, group, acct, mount, tell } from "./ui.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
 
@@ -46,12 +46,12 @@ export default {
     }, (el) => {
       const rows = el.querySelector("#teamRows");
       if (rows) wire(rows, null, async () => {  // the whole team goes back; the engine reads it before its next turn
-        try { m.team = await api(`/api/missions/${m.id}`, { method: "PATCH", body: { team: readTeam(rows) } }).then((x) => x.team); } catch (e) { alert(e.message); }
+        try { m.team = await api(`/api/missions/${m.id}`, { method: "PATCH", body: { team: readTeam(rows) } }).then((x) => x.team); } catch (e) { tell(e.message); }
       });
       const sw = el.querySelector("#huntSw");
       if (sw) sw.onclick = async () => {
         const on = sw.getAttribute("aria-checked") !== "true";
-        try { await api("/api/hunt", { method: "POST", body: { pause: on } }); sw.setAttribute("aria-checked", on); } catch (e) { alert(e.message); }
+        try { await api("/api/hunt", { method: "POST", body: { pause: on } }); sw.setAttribute("aria-checked", on); } catch (e) { tell(e.message); }
       };
     });
   },

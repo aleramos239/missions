@@ -28,3 +28,16 @@ export async function mount(el, build, bind) {
 export const shared = { id: null, name: null, box: null };
 export const mine = (m) => m.versions.filter((v) => v.box_label || v.state === "running");
 export const bestOf = (m) => (m.versions.find((v) => v.version === m.board.best) || m.versions[m.versions.length - 1] || {}).name;
+
+// In-page dialogs: the Mac app's web view gives window.confirm / alert no panel. Escape = the first (safe) button.
+function ask(text, btns) {
+  return new Promise((done) => {
+    const d = document.createElement("div"); d.className = "mx-warn"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");
+    d.innerHTML = `<div><p>${esc(text)}</p><div class="row">${btns.map((b, i) => `<button class="btn ${i === btns.length - 1 && btns.length > 1 ? "btn-default" : "btn-outline"} btn-sm" type="button" data-r="${btns.length > 1 ? i : 1}">${esc(b)}</button>`).join("")}</div></div>`;
+    d.onclick = (e) => { const b = e.target.closest("[data-r]"); if (b) { d.remove(); done(b.dataset.r === "1"); } };
+    d.onkeydown = (e) => { if (e.key === "Escape") { d.remove(); done(false); } };
+    document.body.append(d); d.querySelector("button").focus();
+  });
+}
+export const sure = (text, { yes = "OK", no = "Cancel" } = {}) => ask(text, [no, yes]);
+export const tell = (text) => ask(text, ["OK"]);

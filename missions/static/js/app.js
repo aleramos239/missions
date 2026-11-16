@@ -7,6 +7,7 @@ import * as nw from "./new.js";
 import * as chat from "./chat.js";
 import * as mic from "./mic.js";
 import { api } from "./net.js";
+import { sure, tell } from "./ui.js";
 import running from "./running.js";
 import progress from "./progress.js";
 import best from "./best.js";
@@ -128,17 +129,17 @@ $("#hbInspBtn").onclick = () => { H.dataset.inspShut = H.dataset.inspShut === "1
 $("#gearBtn").onclick = $("#labPill").onclick = () => go("#/conn");
 $("#openBrief").onclick = () => go(`#/m/${S.id}/brief`);
 $("#pauseBtn").onclick = async (e) => {
-  try { await api(`/api/missions/${S.id}/${e.currentTarget.dataset.act}`, { method: "POST" }); } catch (x) { alert(x.message); }
+  try { await api(`/api/missions/${S.id}/${e.currentTarget.dataset.act}`, { method: "POST" }); } catch (x) { tell(x.message); }
   reload(true);
 };
 $("#delBtn").onclick = async () => {
-  if (!confirm(deleteAsk(S.id))) return;
-  try { await api(`/api/missions/${S.id}`, { method: "DELETE" }); } catch (x) { return alert(x.message); }
+  if (!(await sure(deleteAsk(S.id), { yes: "Delete", no: "Keep" }))) return;
+  try { await api(`/api/missions/${S.id}`, { method: "DELETE" }); } catch (x) { return tell(x.message); }
   location.hash = "#/home"; location.reload();
 };
 $("#stopBtn").onclick = async () => {
-  if (!confirm("Stop this mission? The team writes the closest honest result and ends.")) return;
-  try { await api(`/api/missions/${S.id}/stop`, { method: "POST" }); } catch (x) { alert(x.message); }
+  if (!(await sure("Stop this mission? The team writes the closest honest result and ends.", { yes: "Stop", no: "Keep running" }))) return;
+  try { await api(`/api/missions/${S.id}/stop`, { method: "POST" }); } catch (x) { tell(x.message); }
   reload(true);
 };
 
