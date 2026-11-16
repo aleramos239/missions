@@ -262,7 +262,8 @@ class Engine:
         return {"goal": {"kind": g.get("kind"), "target": g.get("target"), "rule": g.get("rule"), "recent": g.get("recent")}, "round": m["round"],
                 "stage": {"n": self._stage_n(), "of": self._stages(), "try": self._tries_used(),
                            "per": ((m["limits"] or {}).get("tries") or {}).get("n"),
-                           "focus": (m["pending"].get("focus") or {}).get("text")},
+                           "focus": (m["pending"].get("focus") or {}).get("text"),
+                           "reports": m.get("stage_reports") or []},
                 "tries": tries, "versions": out, "best": best, "reads": m["reads"]}
 
     async def _refresh_tries(self, family):
@@ -448,6 +449,13 @@ class Engine:
         if st["next"] == "narrow" and not any(st.get("base") in (v["version"], v["name"]) and v.get("gate")
                                               for v in self.m["versions"]):
             return "a narrow stage needs a base that is one of the scored versions"
+        if not isinstance(st.get("report"), str) or len(st["report"].strip()) < 200:
+            return "stage.report is required: the full stage report in plain words, at least 200 characters"
+
+    def _with_report(self, text):
+        """The latest stage report goes after the focus text, so every worker reads it every round of the next stage."""
+        reps = self.m.get("stage_reports") or []
+        return text if not reps else f"{text}\n\nReport of stage {reps[-1]['stage']}, read it and work off it:\n{reps[-1]['report'][:4000]}"
 
     async def _stage(self):
         m, p = self.m, self.m["pending"]
@@ -467,6 +475,8 @@ class Engine:
         if isinstance(st.get("why"), str):
             self._say("lead", st["why"], for_workers=False, data={"to_owner": True})
         n = self._stage_n()
+        m.setdefault("stage_reports", []).append({"stage": n, "next": st["next"], "base": st.get("base"), "report": st["report"].strip()})
+        self._say("lead", f"Report of stage {n}:\n{st['report'].strip()}", data={"to_owner": True})
         if st["next"] == "stop":
             self._say("engine", f"Stage {n} is over. The Lead stops the mission.", for_workers=False)
             raise _Done("limit")
@@ -476,6 +486,9 @@ class Engine:
             self._base_focus(v["name"], v["version"], v.get("idea"))
         else:
             self._fresh_focus()
+        f = p["focus"]
+        f["text"] = self._with_report(f["text"])
+        self._save()
         p["next"] = p["fixes"] = None
         m["empty_rounds"] = 0
         self._say("engine", f"Stage {n} is over. Stage {n + 1} of {self._stages()}: "

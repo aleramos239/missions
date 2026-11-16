@@ -24,10 +24,12 @@ _C = {
                             '"fixes": [{"idea": "...", "family": "...", "why": "..."}]}'),
     ("lead", "verdict"): '{"to_owner": "<two plain sentences>", "next": "<what the next round tries>"}',
 }
-_C[("lead", "stage")] = ('{"stage": {"next": "narrow" | "fresh" | "stop", "base": "v23", "why": "..."}} '
+_C[("lead", "stage")] = ('{"stage": {"next": "narrow" | "fresh" | "stop", "base": "v23", "why": "...", "report": "..."}} '
                          "(narrow: the next stage works only on variations of one scored version, base is required and must be one "
                          "of the scored versions; fresh: the next stage starts from new ideas, no base; stop: the mission ends; "
-                         "why: two plain sentences)")
+                         "why: two plain sentences for the owner; report: the full report of this stage, plain words, short sections: what was "
+                         "tried (each version, one line), what worked and the numbers, what failed and why, what the next stage should "
+                         "try and what to avoid; at least 200 characters. The whole team reads it at the start of the next stage)")
 _C[("builder", "check")] = '{"checked": ["v08"], "failed": [{"version": "v09", "why": "..."}]}'
 _C[("lead", "read")] = ('{"why": "..."} (advice only: plain words first, say what the Judge\'s one-line answer means '
                         "and what the next round could try. You cannot stop the mission)")
@@ -37,7 +39,7 @@ _STEPS = {"brief": "Write the brief with the owner.", "ideas": "Step: ideas. Wri
           "check": "Step: code check. Their tables are done. Run `blueprint_code_check` on each version named below, one call each, then stop.",
           "stage": ("Step: stage review. The tries of this stage are used. Stop, look at everything: what worked, what did not. "
                     "If nothing worked, the next stage restarts from zero with fresh ideas. If one idea worked, the next stage works "
-                    "only on that idea. Or stop the mission."),
+                    "only on that idea. Or stop the mission. You also write the stage report: the whole team reads it at the start of the next stage and works off it."),
           "argue": "Step: argue.", "verdict": "Step: verdict. Sum up the round.",
           "read": "Step: read. The Judge answered in one line (held, which line, or close). Say what comes next.",
           "owner": "The owner wrote to you. Answer him."}

@@ -69,7 +69,7 @@ class Turns:
         if step == "check":
             return {"checked": re.findall(r"v\d\d", prompt.split("# Asked of you")[-1]), "failed": []}
         if step == "stage":
-            return {"stage": {"next": "stop", "why": "enough"}}
+            return {"stage": {"next": "stop", "why": "enough", "report": "r" * 200}}
         if step == "argue" and role == "doubter":
             return {"claims": [{"version": "v01", "charge": "One year carries it", "say": "2023 carries it"}]}
         if step == "argue":

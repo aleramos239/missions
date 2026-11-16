@@ -7,6 +7,8 @@ from tests.fakes.hb import FakeHB
 from tests.test_briefing import GOOD, Lead, block as bblock, mk as bmk
 from tests.test_engine import BRIEF, kit, kit3, round_then_stop, run, set_fake, steps  # noqa: F401
 
+REPORT = "What was tried: v01 plan idea. " + "It worked a little. " * 12
+
 
 @pytest.fixture(autouse=True)
 def _usage(monkeypatch):
@@ -28,7 +30,7 @@ def prompts(kit, role, step):
 
 
 def test_a_full_stage_goes_to_the_lead_then_the_next_stage_runs_fresh(kit):
-    eng = staged(kit, [{"stage": {"next": "fresh", "why": "nothing worked"}}])
+    eng = staged(kit, [{"stage": {"next": "fresh", "why": "nothing worked", "report": REPORT}}])
     assert run(eng.run()) == "limit"  # stage 2 used its try: the last stage ends the mission
     m = store.load(kit.mid)
     assert m["stage"] == 2 and len(prompts(kit, "lead", "stage")) == 1
@@ -41,7 +43,7 @@ def test_a_full_stage_goes_to_the_lead_then_the_next_stage_runs_fresh(kit):
 
 def test_narrow_carries_the_base_idea_and_settings(kit):
     kit.fake.specs["m%d_v01" % kit.mid] = {"stop": 12}
-    eng = staged(kit, [{"stage": {"next": "narrow", "base": "v01", "why": "it worked"}}])
+    eng = staged(kit, [{"stage": {"next": "narrow", "base": "v01", "why": "it worked", "report": REPORT}}])
     run(eng.run())
     p = prompts(kit, "doubter", "ideas")
     assert "Work only on this idea: variations of it. Base v01: plan idea" in p[1] and 'stop\\": 12' in p[1]
@@ -49,7 +51,7 @@ def test_narrow_carries_the_base_idea_and_settings(kit):
 
 
 def test_stop_ends_the_mission(kit):
-    eng = staged(kit, [{"stage": {"next": "stop", "why": "enough"}}], stages=3)
+    eng = staged(kit, [{"stage": {"next": "stop", "why": "enough", "report": REPORT}}], stages=3)
     assert run(eng.run()) == "limit"
     assert store.load(kit.mid).get("stage", 1) == 1 and len(store.load(kit.mid)["versions"]) == 1
 
@@ -68,7 +70,7 @@ def test_an_old_mission_without_stages_is_one_stage(kit):
     eng = kit.eng()
     eng.system = system
     assert run(eng.run()) == "limit" and not prompts(kit, "lead", "stage")
-    assert eng.board()["stage"] == {"n": 1, "of": 1, "try": 1, "per": 1, "focus": None}
+    assert eng.board()["stage"] == {"n": 1, "of": 1, "try": 1, "per": 1, "focus": None, "reports": []}
 
 
 def test_a_dropped_for_no_trade_version_is_not_a_try(kit):
@@ -169,3 +171,16 @@ def test_approve_carries_target_r_but_not_base(monkeypatch, tmp_path):
     run(briefing.approve(mid, "Yes", hb=f))
     assert f.briefs[mid]["target_r"] == 2 and "base" not in f.briefs[mid]
     assert "target_r" in hbmod.BRIEF_KEYS
+
+
+def test_the_stage_report_is_required_saved_and_read_by_the_next_stage(kit):
+    eng = staged(kit, [{"stage": {"next": "fresh", "why": "x", "report": "short"}},
+                       {"stage": {"next": "fresh", "why": "x", "report": REPORT}}])
+    run(eng.run())
+    assert "stage.report is required" in prompts(kit, "lead", "stage")[1]
+    m = store.load(kit.mid)
+    assert m["stage_reports"] == [{"stage": 1, "next": "fresh", "base": None, "report": REPORT.strip()}]
+    assert "Report of stage 1" in prompts(kit, "builder", "ideas")[1] and REPORT.strip() in prompts(kit, "doubter", "ideas")[1]
+    assert "Report of stage 1" not in prompts(kit, "builder", "ideas")[0]
+    chat = [e for e in store.events(kit.mid) if e["type"] == "chat" and "Report of stage 1" in (e.get("text") or "")]
+    assert chat and chat[0]["for_workers"] and chat[0]["data"]["to_owner"]

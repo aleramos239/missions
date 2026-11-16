@@ -151,3 +151,6 @@ html.hb-apple .mx-warn > div { max-width: 360px; padding: 18px; border-radius: 1
 html.hb-apple .mx-warn p { margin: 0 0 14px; font-size: 13px; line-height: 18px; }
 html.hb-apple .mx-warn .row { display: flex; gap: 8px; justify-content: flex-end; }
 html.hb-apple .mx-err { margin: 8px 0; font-size: 13px; color: var(--a-label-2); }
+
+html.hb-apple .mx-rep { margin: 10px 0 0 16px; font-size: 13px; }
+html.hb-apple .mx-rep summary { cursor: pointer; color: var(--a-label-2); }
