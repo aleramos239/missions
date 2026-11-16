@@ -101,7 +101,7 @@ def new_mission(sentence: str, team: dict, limits: dict, test_months: str) -> di
     m = {"id": mid, "title": sentence[:40], "sentence": sentence, "created": _now(), "status": "briefing",
          "team": team, "limits": limits, "test_months": test_months, "brief": None, "round": 0, "step": None,
          "sessions": {}, "versions": [], "pending": {}, "empty_rounds": 0, "run_seconds": 0,
-         "usage_start": None, "cost_usd": 0.0, "reads": 0, "result": None}
+         "usage_start": None, "usage_used": 0.0, "cost_usd": 0.0, "reads": 0, "result": None}
     save(m)
     return m
 

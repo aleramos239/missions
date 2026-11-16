@@ -315,8 +315,13 @@ class Engine:
             t = await self.run_turn(self.mid, role, pr, model=team["model"], effort=team["effort"],
                                     session_id=session, **kw)
             self.system.note_rate(t.rate)
-            if self.m["usage_start"] is None and (w := self.system.usage().get("seven_day")):
-                self.m["usage_start"] = w["used"]
+            if w := self.system.usage().get("seven_day"):
+                if self.m["usage_start"] is None:
+                    self.m["usage_start"] = w["used"]
+                # the weekly share used while this mission ran; a drop = the week reset, count the new level from 0
+                seen = self.m.get("usage_seen", self.m["usage_start"])
+                self.m["usage_used"] = self.m.get("usage_used", 0.0) + (w["used"] - seen if w["used"] >= seen else w["used"])
+                self.m["usage_seen"] = w["used"]
             self.m["cost_usd"] += t.cost_usd or 0
             if t.why == "plan":
                 await self._wait_plan(t.resets_at)

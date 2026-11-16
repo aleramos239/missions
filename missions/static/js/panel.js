@@ -1,4 +1,4 @@
-import { esc, money, pct, pts, stageText, statusWord } from "./fmt.js";
+import { esc, hm, money, pct, pts, stageText, statusWord } from "./fmt.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
 const LIVE = ["running", "waiting_plan", "waiting_homebase"];
@@ -18,13 +18,15 @@ export function stopsText(l) {
   return on.length ? `the goal, ${on.join(", ")}, or your Stop` : "the goal, or your Stop";
 }
 export const testMonths = (m) => m.test_months === "ask" ? "Ask me first" : m.reads ? `${m.reads} read` : "Sealed";
-const fig = (k, v, who) => `<div class="f"${who ? ` data-who="${who}"` : ""}><span class="k">${k}</span><span class="v">${esc(v)}</span></div>`;
+const fig = (k, v, who, tip) => `<div class="f"${who ? ` data-who="${who}"` : ""}${tip ? ` title="${tip}"` : ""}><span class="k">${k}</span><span class="v">${esc(v)}</span></div>`;
 
 export function render(d) {
   const r = d.right, g = d.board.goal, b = r.best, t = d.pending.tries || d.board.tries;
+  const lim = d.limits && d.limits.usage;
   document.getElementById("pMission").innerHTML = fig("Goal", goalText(g))
     + fig("Best so far", b ? `${goalVal(g.kind, b.goal_value)} · ${b.version}` : "none yet") + fig("Luck bar", r.luck)
-    + fig(d.board.stage && d.board.stage.of > 1 ? "Stage" : "Tries", d.board.stage ? stageText(d.board.stage) : `${t.mission}`) + fig("Test months", testMonths(d));
+    + fig(d.board.stage && d.board.stage.of > 1 ? "Stage" : "Tries", d.board.stage ? stageText(d.board.stage) : `${t.mission}`) + fig("Test months", testMonths(d))
+    + fig("Used", `${pct(d.usage_used || 0)}${lim ? ` of ${lim.pct} %` : ""} week · $${(d.cost_usd || 0).toFixed(2)} · ${hm(d.run_seconds)}`, null, "Share of the weekly plan used while this mission ran. Account-wide: any other Claude use at the same time counts too.");
   const live = SHOW_RUN.includes(d.status), step = (DOING[d.step] || {});
   document.getElementById("pNow").innerHTML = Object.entries(NAMES).map(([k, n]) =>
     fig(n, !live ? statusWord(d) : step[k] || "idle", n)).join("") + fig("Judge", live && d.step === "wait" ? "running the table" : "idle", "Judge");

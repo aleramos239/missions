@@ -98,9 +98,11 @@ def limit_hit(m, tries_mission):
     if (h := lim.get("hours")) and m["run_seconds"] >= h["n"] * 3600:
         return "hours"
     w = usage()["seven_day"]
-    if (u := lim.get("usage")) and w and m.get("usage_start") is not None \
-            and w["used"] - m["usage_start"] >= u["pct"] / 100:
-        return "usage"
+    if u := lim.get("usage"):
+        # old missions have no usage_used: the move since the start
+        used = m["usage_used"] if "usage_used" in m else (w["used"] - m["usage_start"] if w and m.get("usage_start") is not None else 0)
+        if used >= u["pct"] / 100:
+            return "usage"
     return None
 
 

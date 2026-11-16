@@ -185,3 +185,11 @@ def test_awake_ignores_a_stale_pid_file(monkeypatch):
         assert pop.call_count == 1 and (config.home() / "awake.pid").read_text() == "4243"
         system.awake(False)  # the pid is no longer ours: never kill it
         kill.assert_not_called()
+
+
+def test_the_usage_limit_reads_usage_used_when_present():
+    m = mission(usage={"pct": 10})
+    m["usage_used"] = 0.09
+    assert system.limit_hit(m, 0) is None
+    m["usage_used"] = 0.10
+    assert system.limit_hit(m, 0) == "usage"

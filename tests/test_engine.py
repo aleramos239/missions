@@ -657,3 +657,18 @@ def test_a_team_patch_during_a_run_reaches_the_next_turns_command_and_a_new_mode
     assert arg(cmds[1], "--model") == "haiku" and "--resume" in cmds[1]  # turn 2 was already on its way
     assert arg(cmds[2], "--model") == "opus" and arg(cmds[2], "--effort") == "max"
     assert "--resume" not in cmds[2] and store.load(kit.mid)["team"]["lead"]["model"] == "opus"
+
+
+def test_usage_used_adds_the_rise_and_survives_a_weekly_reset(kit):
+    levels = iter([0.30, 0.35, 0.02, 0.03])
+
+    class Sys(engine._NoSystem):
+        def usage(self):
+            return {"seven_day": {"used": next(levels), "resets_at": 1}}
+    e = kit.mk(system=Sys())
+    m = e.m
+    m["usage_start"], m["usage_used"] = None, 0.0
+    m.pop("usage_seen", None)
+    for _ in range(4):
+        run(e._once("lead", "ideas", [], "", None, {}))
+    assert round(m["usage_used"], 4) == round(0.05 + 0.02 + 0.01, 4)

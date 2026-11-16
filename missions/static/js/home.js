@@ -1,4 +1,4 @@
-import { statusWord, canDelete, deleteAsk } from "./fmt.js";
+import { pct, statusWord, canDelete, deleteAsk } from "./fmt.js";
 import { api } from "./net.js";
 import { goalVal } from "./panel.js";
 import { title, group, acct, mount, sure, tell } from "./ui.js";
@@ -16,7 +16,7 @@ export default {
     return mount(el, async () => {
       const list = await api("/api/missions");
       const ds = await Promise.all(list.map((x) => api(`/api/missions/${x.id}`).catch(() => null)));
-      const rows = ds.filter(Boolean).map((d) => acct({ nm: d.title, sub: line(d), val: `${statusWord(d)} · $${d.cost_usd.toFixed(2)}` }).replace('class="acct', `data-m="${d.id}" role="link" tabindex="0" class="acct`)
+      const rows = ds.filter(Boolean).map((d) => acct({ nm: d.title, sub: line(d), val: `${statusWord(d)} · ${pct(d.usage_used || 0)} wk · $${d.cost_usd.toFixed(2)}` }).replace('class="acct', `data-m="${d.id}" role="link" tabindex="0" class="acct`)
         .replace(/<\/div>$/, `<button type="button" class="btn btn-outline btn-sm mx-del" data-del="${d.id}"${canDelete(d) ? "" : ' disabled title="Stop it first"'}>Delete</button></div>`));
       return title("Missions.", list.length ? "Each with its status, its cost and where it stands." : "None yet.")
         + (rows.length ? `<div class="sec">${group(rows)}</div>` : "");
