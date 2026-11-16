@@ -174,7 +174,8 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     # ---- missions
     @app.get("/api/missions")
     async def sidebar():
-        return [{"id": m["id"], "title": m["title"], "status": m["status"], "round": m["round"], "badge": _badge(m)}
+        return [{"id": m["id"], "title": m["title"], "status": m["status"], "round": m["round"], "badge": _badge(m),
+                 "stage": [m.get("stage", 1), ((m["limits"] or {}).get("stages") or {}).get("n", 1)]}
                 for m in store.missions()]
 
     async def brief_turn(mid, answer=None, background=False):
@@ -274,6 +275,15 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
                 raise ValueError("the mission is not over, or never used that family")
             wrapup.mark_dead(fam, f"mission {mid}", body.get("said"))
         return {"dead": fam}
+
+    @app.delete("/api/missions/{mid}")
+    async def delete(mid: int):
+        m = _mission(mid)
+        if m["status"] in ("briefing", "queued", "running", "waiting_plan", "waiting_homebase", "waiting_owner") \
+                or mid in engine._active:
+            raise Bad("Stop it first")
+        store.delete(mid)
+        return {"deleted": mid}
 
     @app.patch("/api/missions/{mid}")
     async def patch(mid: int, body: dict = Body(...)):

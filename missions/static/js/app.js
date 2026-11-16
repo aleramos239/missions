@@ -1,4 +1,4 @@
-import { statusWord } from "./fmt.js";
+import { statusWord, canDelete, deleteAsk } from "./fmt.js";
 import { goalText } from "./panel.js";
 import * as sse from "./sse.js";
 import * as side from "./side.js";
@@ -112,6 +112,7 @@ function paint(scroll = true) {
   $("#tbTitle").textContent = m ? m.title : S.page === "conn" ? "Connections" : S.page === "home" ? "Missions" : "New mission";
   $("#tbSub").textContent = m ? `${statusWord(m)} · goal ${goalText(m.board.goal)}` : S.page === "conn" ? "Claude and the Lab" : S.page === "home" ? "Every mission" : "Nothing runs yet";
   panel.toolbar(m || null);
+  const del = $("#delBtn"); del.hidden = !m; del.disabled = !!m && !canDelete(m); del.title = del.disabled ? "Stop it first" : "Delete this mission";
   H.classList.toggle("hb-insp-off", !m || H.dataset.inspShut === "1" || window.innerWidth < NARROW);
   if (!m) { ["pMission", "pNow", "pBrief"].forEach((i) => ($("#" + i).innerHTML = "")); return; }
   panel.render(m);
@@ -129,6 +130,11 @@ $("#openBrief").onclick = () => go(`#/m/${S.id}/brief`);
 $("#pauseBtn").onclick = async (e) => {
   try { await api(`/api/missions/${S.id}/${e.currentTarget.dataset.act}`, { method: "POST" }); } catch (x) { alert(x.message); }
   reload(true);
+};
+$("#delBtn").onclick = async () => {
+  if (!confirm(deleteAsk(S.id))) return;
+  try { await api(`/api/missions/${S.id}`, { method: "DELETE" }); } catch (x) { return alert(x.message); }
+  location.hash = "#/home"; location.reload();
 };
 $("#stopBtn").onclick = async () => {
   if (!confirm("Stop this mission? The team writes the closest honest result and ends.")) return;

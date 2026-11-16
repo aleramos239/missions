@@ -154,3 +154,16 @@ html.hb-apple .mx-err { margin: 8px 0; font-size: 13px; color: var(--a-label-2);
 
 html.hb-apple .mx-rep { margin: 10px 0 0 16px; font-size: 13px; }
 html.hb-apple .mx-rep summary { cursor: pointer; color: var(--a-label-2); }
+
+/* mission rows in the left list: title on one line, a small muted status line under it */
+html.hb-apple .hb-side .sh:has(.mx-mt) { height: auto; min-height: 34px; padding-top: 3px; padding-bottom: 3px; }
+html.hb-apple .hb-side .sh-t:has(.mx-mt) { height: auto; min-width: 0; max-width: 100%; align-items: center; padding-top: 2px; padding-bottom: 2px; }
+html.hb-apple .hb-side .mx-mt { display: flex; flex-direction: column; min-width: 0; text-align: left; }
+html.hb-apple .hb-side .mx-mt b { font-weight: 590; font-size: 12px; line-height: 15px; color: var(--a-label-pane-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.hb-apple .hb-side .mx-mt small { font-size: 10.5px; line-height: 13px; font-weight: 510; color: var(--a-label-pane-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.hb-apple .hb-side .mx-dot { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; vertical-align: 1px; background: var(--a-label-pane-3); }
+html.hb-apple .hb-side .mx-dot.ok { background: var(--pos); }
+html.hb-apple .hb-side .mx-dot.warn { background: var(--warn, oklch(0.7 0.16 70)); }
+html.hb-apple .hb-side .mx-dot.bad { background: var(--neg, oklch(0.62 0.2 25)); }
+html.hb-apple .hb-side .sh-chev { flex: none; }
+html.hb-apple .mx-del { margin-left: 12px; flex: none; }

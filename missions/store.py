@@ -1,6 +1,7 @@
 import fcntl
 import json
 import os
+import shutil
 from datetime import datetime, timezone
 
 from . import config
@@ -70,6 +71,18 @@ def team_defaults() -> dict:
         return DEFAULT_TEAM
 
 
+def _last_id():
+    try:
+        return int((config.home() / "last_id").read_text())
+    except (OSError, ValueError):
+        return 0
+
+
+def delete(mid):
+    shutil.rmtree(mdir(mid))
+    shutil.rmtree(config.home() / "_work" / str(mid), ignore_errors=True)
+
+
 def new_mission(sentence: str, team: dict, limits: dict, test_months: str) -> dict:
     check_limits(limits)
     if test_months not in ("team", "ask"):
@@ -78,9 +91,10 @@ def new_mission(sentence: str, team: dict, limits: dict, test_months: str) -> di
     config.home().mkdir(parents=True, exist_ok=True)
     # mkdir is the claim: two callers cannot take the same id (shortcut: skips ids on a race)
     while True:
-        mid = 1 + max(_ids(config.home()) + _ids(config.hb_missions()), default=0)
+        mid = 1 + max(_ids(config.home()) + _ids(config.hb_missions()) + [_last_id()], default=0)
         try:
             mdir(mid).mkdir()
+            (config.home() / "last_id").write_text(str(mid))  # a deleted id is never handed out again
             break
         except FileExistsError:
             continue

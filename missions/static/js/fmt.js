@@ -29,3 +29,6 @@ export const hm = (s) => (ok(s) ? (s < 3600 ? `${Math.round(s / 60)} min` : `${M
 
 // "Stage 2 of 3 · try 5 of 20" (an old mission has one stage: "Try 5 of 40")
 export const stageText = (s) => s ? `${s.of > 1 ? `Stage ${s.n} of ${s.of} · ` : ""}${s.of > 1 ? "try" : "Try"} ${s.try}${s.per ? ` of ${s.per}` : ""}` : "";
+// a mission can be deleted once nothing of it runs (the server refuses the rest)
+export const canDelete = (m) => !["briefing", "queued", "running", "waiting_plan", "waiting_homebase", "waiting_owner"].includes(m.status);
+export const deleteAsk = (id) => `Delete mission ${id}? Its chat, versions and reports are removed from the app. This can't be undone.`;

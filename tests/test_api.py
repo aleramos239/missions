@@ -310,3 +310,15 @@ def test_team_defaults_fall_back_then_save_and_validate():
     for bad in ({"lead": new["lead"]}, {**new, "lead": {"model": "gpt", "effort": "low"}}, {**new, "lead": {"model": "opus"}}):
         assert call("PUT", "/api/team-defaults", json=bad).status_code == 400
     assert call("GET", "/api/team-defaults").json() == new
+
+
+def test_delete_refused_while_running_removed_when_stopped_and_id_not_reused():
+    mid = mk()
+    r = call("DELETE", f"/api/missions/{mid}")
+    assert r.status_code == 400 and "Stop it first" in r.text and store.mdir(mid).exists()
+    call("POST", f"/api/missions/{mid}/stop")
+    (config.work_dir(mid, "lead") / "x").write_text("1")
+    assert call("DELETE", f"/api/missions/{mid}").status_code == 200
+    assert not store.mdir(mid).exists() and not (config.home() / "_work" / str(mid)).exists()
+    assert call("GET", "/api/missions").json() == [] and call("DELETE", f"/api/missions/{mid}").status_code == 404
+    assert mk() == mid + 1
