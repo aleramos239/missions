@@ -35,13 +35,29 @@ export function renderChat(S) {
   const at = STEP_AT[m.step] ?? 0, done = (at / 5) * 100;
   $("#tlDone").style.width = done + "%"; $("#tlNow").style.left = done + "%";
   $("#tlLabels").innerHTML = LABELS.map((l, i) => `<span class="tl-t${i === 0 ? " at-start" : i === 5 ? " at-end" : ""}${i === at ? " strong" : ""}" style="left:${i * 20}%">${l}</span>`).join("");
+  const box = $("#chatBox"), atEnd = !box.dataset.on || nearEnd(box);
   feed($("#feed"), S.events, m);
-  filter();
+  filter(false);
+  if (!box.dataset.on) { box.dataset.on = "1"; initBox(box); }
+  if (atEnd) { box.scrollTop = box.scrollHeight; $("#newMsg").hidden = true; } else $("#newMsg").hidden = false;
 }
 
-function filter() {
+const nearEnd = (b) => b.scrollHeight - b.scrollTop - b.clientHeight < 40;
+const HKEY = "missions.chatH";
+function initBox(box) {
+  const h = parseInt(localStorage.getItem(HKEY), 10);
+  if (h >= 240) box.style.height = h + "px";
+  // saved on mouseup/touchend after a drag
+  const save = () => { if (box.offsetHeight >= 240) localStorage.setItem(HKEY, box.offsetHeight); };
+  box.addEventListener("mouseup", save); box.addEventListener("touchend", save);
+  box.addEventListener("scroll", () => { if (nearEnd(box)) $("#newMsg").hidden = true; });
+  $("#newMsg").onclick = () => { box.scrollTop = box.scrollHeight; $("#newMsg").hidden = true; };
+}
+
+function filter(jump = true) {
   const v = $("#who").value;
   document.querySelectorAll("#feed .feed-row").forEach((r) => (r.hidden = !!v && r.dataset.who !== v));
+  if (jump) $("#chatBox").scrollTop = $("#chatBox").scrollHeight;
 }
 
 // the Lead's open question: the last ask with no owner answer after it

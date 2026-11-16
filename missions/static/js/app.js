@@ -119,7 +119,7 @@ function paint(scroll = true) {
   panel.render(m);
   if (v === "chat") chat.renderChat(S);
   else if (v === "brief") chat.renderBrief(S, api);
-  const last = $(v === "brief" ? "#briefFeed .feed-row:last-child" : "#feed .feed-row:last-child");
+  const last = v === "chat" ? null : $("#briefFeed .feed-row:last-child");
   if (last && (scroll || firstPaint)) { last.scrollIntoView({ block: "nearest" }); firstPaint = false; }
 }
 
