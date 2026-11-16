@@ -1,4 +1,5 @@
 import { esc } from "./fmt.js";
+import { md } from "./md.js";
 import { sure, tell } from "./ui.js";
 import { goalText, goalVal, stopsText, testMonths } from "./panel.js";
 
@@ -12,55 +13,107 @@ const LABELS = ["Brief", "Ideas", "Build and run", "Argue", "Verdict", "Test mon
 const APPROVE = "Yes, start: the team may run heat maps, pick boxes by the score and read test months through the Judge";
 const APPROVE_ASK = "Yes, start: the team may run heat maps and pick boxes by the score; it asks me before the test months";
 
+const when = (at) => new Date(at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const opened = new Set();  // the talk rows the owner opened
+const folds = new Set();   // the "The team worked" rows he opened (keyed by their first message)
+const more = new Set();    // the long messages he opened with "Show more"
+
 function row(e, m) {
   const who = WHO[e.who] || cap(String(e.who || "?"));
-  const tag = e.who === "judge" ? "code" : e.who === "owner" ? (e.to ? `to ${cap(String(e.to))}` : "") : m.team[e.who] ? cap(String(m.team[e.who].model)) : "";
+  const tag = e.who === "judge" ? "code" : e.who === "owner" ? (e.to ? `to ${cap(String(e.to))}` : "to everyone") : m.team[e.who] ? cap(String(m.team[e.who].model)) : "";
+  const t = `<span class="t" title="${esc(when(e.at))}">${clock(e.at)}</span>`;
   const line = e.data && typeof e.data.line === "string" ? `<div class="raw">${esc(e.data.line)}</div>` : "";
   if (e.type === "talk")  // a worker's working notes: two lines, a click opens the rest (kept open across repaints)
-    return `<div class="feed-row talk" data-who="${esc(who)}" data-n="${e.n}"><span class="t">${clock(e.at)}</span><div class="h"><b>${esc(who)}</b><span class="tag">notes</span><details${opened.has(e.n) ? " open" : ""}><summary>${esc(e.text)}</summary></details></div></div>`;
-  return `<div class="feed-row${who === "You" ? " you" : ""}" data-who="${esc(who)}" data-n="${e.n}"><span class="t">${clock(e.at)}</span><div class="h"><b>${esc(who)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<p>${esc(e.text)}</p></div>${line}</div>`;
+    return `<div class="feed-row talk" data-who="${esc(who)}" data-n="${e.n}"><div class="h"><b>${esc(who)}</b><span class="tag">notes</span>${t}<details${opened.has(e.n) ? " open" : ""}><summary>${esc(e.text)}</summary></details></div></div>`;
+  const body = `<div class="md${more.has(e.n) ? " more" : ""}">${md(e.text)}</div>`;
+  if (who === "You")  // his own turn: a soft bubble on the right
+    return `<div class="feed-row you" data-who="You" data-n="${e.n}"><div class="h"><div class="meta">${esc(tag)} · ${t}</div>${body}</div></div>`;
+  return `<div class="feed-row" data-who="${esc(who)}" data-n="${e.n}"><div class="h"><b>${esc(who)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ""}${t}${body}</div>${line}</div>`;
 }
 const chatOnly = (events) => events.filter((e) => e.type === "chat" && e.text);
+const shown = (events) => events.filter((e) => (e.type === "chat" || e.type === "talk") && e.text);
+const JUDGE_NOISE = /\bis dropped\b|\bnot started\b/;
 
-const opened = new Set();  // the talk rows the owner opened
-function feed(el, events, m) {
-  el.innerHTML = events.filter((e) => (e.type === "chat" || e.type === "talk") && e.text).map((e) => row(e, m)).join("");
+// "For you": his own texts; what is written to him (data.to_owner, a brief question); a worker's answer to his text
+// (a chat after that worker's "owner" turn); the Judge's reads (not its dropped / not-started lines); the engine's
+// lines kept from the workers (stage over, errors, Homebase down). The rest is the team at work.
+export function mine(events) {
+  const keep = new Set(), step = {};
+  for (const e of events) {
+    if (e.type === "turn") { step[e.who] = e.text; continue; }
+    if (e.type !== "chat" || !e.text) continue;
+    const d = e.data || {};
+    if (e.who === "owner" || d.to_owner || d.ask || step[e.who] === "owner"
+        || (e.who === "judge" && !JUDGE_NOISE.test(e.text)) || (e.who === "engine" && e.for_workers === false)) keep.add(e.n);
+    if (e.who in step) step[e.who] = null;  // one answer per "owner" turn
+  }
+  return keep;
+}
+
+const plural = (n) => `${n} ${n === 1 ? "message" : "messages"}`;
+function feed(el, events, m, view = "") {
+  const rows = shown(events);
+  if (view !== "mine") {
+    el.innerHTML = rows.filter((e) => !view || (WHO[e.who] || cap(String(e.who))) === view).map((e) => row(e, m)).join("");
+    return clampLong(el);
+  }
+  const keep = mine(events);
+  let html = "", run = [];
+  const flush = () => {
+    if (run.length) html += `<details class="mx-fold" data-fold="${run[0].n}"${folds.has(run[0].n) ? " open" : ""}><summary>The team worked · ${plural(run.length)}</summary><div class="mx-fold-in">${run.map((e) => row(e, m)).join("")}</div></details>`;
+    run = [];
+  };
+  for (const e of rows) {
+    if (keep.has(e.n)) { flush(); html += row(e, m); }
+    else if (!(e.type === "talk" && e.text.trim().length < 60)) run.push(e);  // a throwaway note is left out
+  }
+  flush();
+  el.innerHTML = html;
+  clampLong(el);
+}
+
+// a message taller than the clamp gets a fade and "Show more" (only visible ones can be measured; a fold measures on open)
+function clampLong(root) {
+  root.querySelectorAll(".md:not(.more):not([data-c])").forEach((b) => {
+    if (!b.offsetParent) return;
+    b.dataset.c = "1";
+    if (b.scrollHeight <= b.clientHeight + 2) return;
+    b.classList.add("clamped");
+    b.insertAdjacentHTML("afterend", `<button class="mx-more" type="button">Show more</button>`);
+  });
 }
 
 export function renderChat(S) {
   const m = S.m, r = m.right, g = m.board.goal, b = r.best, t = m.board.tries.mission;
-  $("#chatTitle").innerHTML = `${b ? `Best so far ${goalVal(g.kind, b.goal_value)}. Goal ${goalVal(g.kind, g.target)}.` : `Goal ${goalVal(g.kind, g.target)}. Nothing has scored yet.`}<br><span>${esc(m.sentence)}</span>`;
-  $("#chatCap").textContent = `Test months ${testMonths(m).toLowerCase()} · ${t} ${t === 1 ? "try" : "tries"}`;
+  $("#chatTitle").textContent = b ? `Best so far ${goalVal(g.kind, b.goal_value)}. Goal ${goalVal(g.kind, g.target)}.` : `Goal ${goalVal(g.kind, g.target)}. Nothing has scored yet.`;
+  $("#chatSentence").textContent = m.sentence || "";
+  const at = STEP_AT[m.step] ?? 0, done = (at / 5) * 100;
+  $("#chatCap").textContent = `${m.round ? `Round ${m.round} · ${LABELS[at]} · ` : ""}Test months ${testMonths(m).toLowerCase()} · ${t} ${t === 1 ? "try" : "tries"}`;
   $("#stepRound").textContent = `Round ${m.round}`;
   $("#stepSince").textContent = "";
   const h = Math.floor(m.run_seconds / 3600), mi = Math.floor(m.run_seconds / 60) % 60;
   $("#elapsed").textContent = `${h} h ${mi} m`;
-  const at = STEP_AT[m.step] ?? 0, done = (at / 5) * 100;
   $("#tlDone").style.width = done + "%"; $("#tlNow").style.left = done + "%";
   $("#tlLabels").innerHTML = LABELS.map((l, i) => `<span class="tl-t${i === 0 ? " at-start" : i === 5 ? " at-end" : ""}${i === at ? " strong" : ""}" style="left:${i * 20}%">${l}</span>`).join("");
   const box = $("#chatBox"), atEnd = !box.dataset.on || nearEnd(box);
-  feed($("#feed"), S.events, m);
-  filter(false);
+  feed($("#feed"), S.events, m, $("#who").value);
   if (!box.dataset.on) { box.dataset.on = "1"; initBox(box); }
-  if (atEnd) { box.scrollTop = box.scrollHeight; $("#newMsg").hidden = true; } else $("#newMsg").hidden = false;
+  const grew = S.events.length > (box._n ?? S.events.length); box._n = S.events.length;  // a repaint alone is not news
+  if (atEnd) { box.scrollTop = box.scrollHeight; $("#newMsg").hidden = true; } else if (grew) $("#newMsg").hidden = false;
 }
 
 const nearEnd = (b) => b.scrollHeight - b.scrollTop - b.clientHeight < 40;
+// his own height, as "v2:<px>": an older plain number was saved by any click in the box, not a drag, so it is ignored
 const HKEY = "missions.chatH";
 function initBox(box) {
-  const h = parseInt(localStorage.getItem(HKEY), 10);
+  const v = localStorage.getItem(HKEY) || "", h = v.startsWith("v2:") ? parseInt(v.slice(3), 10) : NaN;
   if (h >= 240) box.style.height = h + "px";
-  // saved on mouseup/touchend after a drag
-  const save = () => { if (box.offsetHeight >= 240) localStorage.setItem(HKEY, box.offsetHeight); };
+  let h0 = 0;  // saved only when a drag changed the height
+  box.addEventListener("mousedown", () => (h0 = box.offsetHeight));
+  const save = () => { if (box.offsetHeight >= 240 && h0 && box.offsetHeight !== h0) { box.style.height = box.offsetHeight + "px"; localStorage.setItem(HKEY, "v2:" + box.offsetHeight); } };
   box.addEventListener("mouseup", save); box.addEventListener("touchend", save);
   box.addEventListener("scroll", () => { if (nearEnd(box)) $("#newMsg").hidden = true; });
   $("#newMsg").onclick = () => { box.scrollTop = box.scrollHeight; $("#newMsg").hidden = true; };
-}
-
-function filter(jump = true) {
-  const v = $("#who").value;
-  document.querySelectorAll("#feed .feed-row").forEach((r) => (r.hidden = !!v && r.dataset.who !== v));
-  if (jump) $("#chatBox").scrollTop = $("#chatBox").scrollHeight;
 }
 
 // the Lead's open question: the last ask with no owner answer after it
@@ -121,11 +174,23 @@ export function renderNeeds(m) {
 }
 
 export function init({ S, api, reload }) {
-  $("#who").onchange = filter;
-  $("#feed").addEventListener("toggle", (e) => {  // toggle does not bubble: caught on the way down
+  $("#who").onchange = () => { renderChat(S); $("#chatBox").scrollTop = $("#chatBox").scrollHeight; };
+  $("#briefToggle").onclick = (e) => {
+    const open = $("#chatMore").hidden; $("#chatMore").hidden = !open;
+    e.currentTarget.setAttribute("aria-expanded", String(open)); e.currentTarget.textContent = open ? "Hide the brief" : "Show the brief";
+  };
+  const toggled = (e) => {  // toggle does not bubble: caught on the way down
+    const f = e.target.dataset.fold;
+    if (f) { if (e.target.open) { folds.add(Number(f)); clampLong(e.target); } else folds.delete(Number(f)); return; }
     const n = Number(e.target.closest("[data-n]").dataset.n);
     if (e.target.open) opened.add(n); else opened.delete(n);
-  }, true);
+  };
+  const showMore = (e) => {
+    const b = e.target.closest(".mx-more"); if (!b) return;
+    const body = b.previousElementSibling; more.add(Number(b.closest("[data-n]").dataset.n));
+    body.classList.add("more"); body.classList.remove("clamped"); b.remove();
+  };
+  for (const id of ["#feed", "#briefFeed"]) { $(id).addEventListener("toggle", toggled, true); $(id).addEventListener("click", showMore); }
   const say = async (to, text, sure) => {
     const out = await api(`/api/missions/${S.id}/chat`, { method: "POST", body: { to, text, ...(sure ? { sure: true } : {}) } });
     if (out.warn) return (await sure(out.warn, { yes: "Send anyway", no: "Don't send" })) ? say(to, text, true) : false;

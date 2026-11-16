@@ -86,14 +86,16 @@
   </section>
 
   <section class="view mx-chat" id="v-chat" hidden>
-    <h1 class="day-title" id="chatTitle"></h1>
-    <div class="mcap" id="chatCap"></div>
-    <h2 class="hb-sec-h">Steps</h2>
-    <div class="daytl"><div class="tl-head"><span><b id="stepRound"></b><span id="stepSince"></span></span><span class="mono" id="elapsed"></span></div>
-      <div class="tl"><div class="tl-track"><i class="tl-done" id="tlDone"></i><i class="tl-now" id="tlNow"></i></div>
-        <div class="tl-labels" id="tlLabels"></div></div></div>
+    <h1 class="day-title mx-ctitle" id="chatTitle"></h1>
+    <div class="mcap mx-cap"><span id="chatCap"></span><button class="mx-link" type="button" id="briefToggle" aria-expanded="false" aria-controls="chatMore">Show the brief</button></div>
+    <div class="mx-chatmore" id="chatMore" hidden>
+      <p class="mx-sentence" id="chatSentence"></p>
+      <div class="daytl"><div class="tl-head"><span><b id="stepRound"></b><span id="stepSince"></span></span><span class="mono" id="elapsed"></span></div>
+        <div class="tl"><div class="tl-track"><i class="tl-done" id="tlDone"></i><i class="tl-now" id="tlNow"></i></div>
+          <div class="tl-labels" id="tlLabels"></div></div></div>
+    </div>
     <div class="mx-sech"><h2 class="hb-sec-h">Team chat</h2>
-      <select class="hb-field" id="who" aria-label="Show"><option value="">Everyone</option><option>Lead</option><option>Builder</option><option>Doubter</option><option>Defender</option><option>Judge</option><option>You</option></select></div>
+      <select class="hb-field" id="who" aria-label="Show"><option value="mine">For you</option><option value="">Everyone</option><option>Lead</option><option>Builder</option><option>Doubter</option><option>Defender</option><option>Judge</option><option>You</option></select></div>
     <div class="act-card mx-chatbox" id="chatBox"><div class="feed" id="feed"></div></div>
     <button class="btn btn-outline btn-sm mx-newmsg" id="newMsg" type="button" hidden>New messages &darr;</button>
     <form class="mx-compose" id="compose" autocomplete="off">

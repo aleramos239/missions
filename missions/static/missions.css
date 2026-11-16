@@ -44,26 +44,78 @@ html.hb-apple .mx-sech { display: flex; align-items: flex-end; justify-content: 
 html.hb-apple .mx-sech .hb-sec-h { margin: 0; padding: 0; }
 html.hb-apple .mx-sech .hb-field { width: auto; }
 
-/* the team chat: the Activity feed, one row a message */
+/* the team chat: one calm reading column, like a chat app. No bubbles for the team; his own turns sit right. */
+html.hb-apple { --mx-quiet: color-mix(in srgb, var(--a-label) 74%, transparent); --mx-you-bg: color-mix(in srgb, var(--a-accent) 9%, var(--a-window)); }
 html.hb-apple .mx-chat .act-card { margin-top: 0; }
-html.hb-apple .mx-chat .feed-row { padding-top: 8px; padding-bottom: 8px; }
-html.hb-apple .mx-chat .feed .h b { font-weight: 590; }
+html.hb-apple .mx-chat .feed { font-size: 15px; line-height: 1.6; }
+html.hb-apple .mx-chat .feed-row { display: block; padding: 14px 10px; }
+html.hb-apple .mx-chat .feed-row + .feed-row::before, html.hb-apple .mx-chat .mx-fold + .feed-row::before, html.hb-apple .mx-chat .feed-row + .mx-fold::before { content: none; }
+html.hb-apple .mx-chat .feed .h > b { font-size: 13px; line-height: 18px; font-weight: 590; }
 html.hb-apple .mx-chat .feed .h .tag { margin-left: 6px; vertical-align: 1px; }
-html.hb-apple .mx-chat .feed .h p { margin: 2px 0 0; max-width: 64ch; }
-html.hb-apple .mx-chat .feed .raw { padding-left: 86px; }
-html.hb-apple .mx-chat .feed-row.you .h p { color: var(--a-label); }
-/* a worker's working notes: lighter, two lines until clicked open */
-html.hb-apple .mx-chat .feed-row.talk details { margin: 2px 0 0; max-width: 64ch; }
-html.hb-apple .mx-chat .feed-row.talk summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; list-style: none; cursor: pointer; white-space: pre-wrap; font-size: 12px; line-height: 16px; color: var(--a-label-2); }
+html.hb-apple .mx-chat .feed .h > .t, html.hb-apple .mx-chat .feed .meta .t { display: inline; margin-left: 8px; font-size: 11px; line-height: 18px; color: var(--a-label-2); }
+html.hb-apple .mx-chat .feed .raw { padding: 4px 0 0; }
+/* the message itself, rendered markdown */
+html.hb-apple .mx-chat .md { margin-top: 3px; color: var(--a-label); overflow-wrap: break-word; max-height: 420px; overflow: hidden; }
+html.hb-apple .mx-chat .md.more { max-height: none; }
+html.hb-apple .mx-chat .md.clamped { -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+html.hb-apple .mx-chat .md > :first-child { margin-top: 0; }
+html.hb-apple .mx-chat .md > :last-child { margin-bottom: 0; }
+html.hb-apple .mx-chat .md p, html.hb-apple .mx-chat .md ul, html.hb-apple .mx-chat .md ol, html.hb-apple .mx-chat .md pre, html.hb-apple .mx-chat .md .md-tw { margin: 0 0 .75em; }
+html.hb-apple .mx-chat .md ul, html.hb-apple .mx-chat .md ol { padding-left: 1.4em; }
+html.hb-apple .mx-chat .md ul { list-style: disc; } html.hb-apple .mx-chat .md ol { list-style: decimal; }
+html.hb-apple .mx-chat .md li { margin: .2em 0; }
+html.hb-apple .mx-chat .md li > ul, html.hb-apple .mx-chat .md li > ol { margin: .2em 0 0; list-style: circle; }
+html.hb-apple .mx-chat .md h4 { margin: 1.1em 0 .35em; font-size: 15px; line-height: 1.4; font-weight: 650; }
+html.hb-apple .mx-chat .md strong { font-weight: 620; }
+html.hb-apple .mx-chat .md code { padding: 1px 5px; border-radius: 5px; background: var(--a-fill); font-family: var(--a-mono); font-size: .86em; }
+html.hb-apple .mx-chat .md pre { padding: 10px 12px; border-radius: 8px; background: var(--a-group); overflow-x: auto; font-size: 13px; line-height: 1.5; }
+html.hb-apple .mx-chat .md pre code { padding: 0; background: none; }
+html.hb-apple .mx-chat .md hr { margin: 1em 0; border: 0; height: 1px; background: var(--a-sep); }
+html.hb-apple .mx-chat .md .md-tw { overflow-x: auto; }
+html.hb-apple .mx-chat .md table { border-collapse: collapse; font-size: 14px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+html.hb-apple .mx-chat .md th, html.hb-apple .mx-chat .md td { padding: 5px 14px 5px 0; text-align: left; border-bottom: 1px solid var(--a-sep); vertical-align: top; }
+html.hb-apple .mx-chat .md th { font-weight: 590; }
+html.hb-apple .mx-chat .md tr:last-child td { border-bottom: 0; }
+html.hb-apple .mx-more { display: inline-block; margin-top: 4px; padding: 2px 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 590; color: var(--a-accent-text); cursor: pointer; }
+html.hb-apple .mx-more:hover { text-decoration: underline; }
+/* his own turn: a soft tinted bubble on the right */
+html.hb-apple .mx-chat .feed-row.you .h { display: flex; flex-direction: column; align-items: flex-end; }
+html.hb-apple .mx-chat .feed-row.you .meta { font-size: 11px; line-height: 16px; color: var(--a-label-2); margin: 0 4px 3px 0; }
+html.hb-apple .mx-chat .feed-row.you .meta .t { margin-left: 0; }
+html.hb-apple .mx-chat .feed-row.you .md { max-width: 75%; margin: 0; padding: 9px 14px; border-radius: 18px; background: var(--mx-you-bg); }
+/* a worker's working notes: quieter, two lines until clicked open */
+html.hb-apple .mx-chat .feed-row.talk { padding-top: 8px; padding-bottom: 8px; }
+html.hb-apple .mx-chat .feed-row.talk details { margin: 2px 0 0; }
+html.hb-apple .mx-chat .feed-row.talk summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; list-style: none; cursor: pointer; white-space: pre-wrap; font-size: 13px; line-height: 1.5; color: var(--mx-quiet); }
 html.hb-apple .mx-chat .feed-row.talk summary::-webkit-details-marker { display: none; }
 html.hb-apple .mx-chat .feed-row.talk details[open] summary { display: block; -webkit-line-clamp: unset; }
-/* the team chat scrolls inside its own box; drag the bottom-right corner to resize */
-html.hb-apple .mx-chatbox { height: calc(100vh - 520px); min-height: 240px; max-height: 90vh; overflow-y: auto; resize: vertical; -webkit-overflow-scrolling: touch; }
-html.hb-apple .mx-newmsg { position: sticky; bottom: 70px; z-index: 3; display: block; margin: -34px auto 6px; box-shadow: 0 2px 8px var(--a-sep); }
+/* "For you": a run of the team's own messages folds into one quiet line */
+html.hb-apple .mx-fold { margin: 2px 10px; }
+html.hb-apple .mx-fold > summary { display: flex; align-items: center; gap: 8px; padding: 6px 0; list-style: none; cursor: pointer; font-size: 13px; line-height: 18px; color: var(--mx-quiet); }
+html.hb-apple .mx-fold > summary::-webkit-details-marker { display: none; }
+html.hb-apple .mx-fold > summary::before { content: "›"; display: inline-block; width: 10px; font-size: 15px; transition: transform 160ms ease; }
+html.hb-apple .mx-fold[open] > summary::before { transform: rotate(90deg); }
+html.hb-apple .mx-fold > summary::after { content: ""; flex: 1; height: 1px; background: var(--a-sep); }
+html.hb-apple .mx-fold > summary:hover { color: var(--a-label); }
+html.hb-apple .mx-fold-in { margin: 0 -10px; padding-left: 14px; }
+html.hb-apple .mx-chat .mx-fold-in .feed { font-size: 14px; }
+html.hb-apple .mx-chat .mx-fold-in .md { font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { html.hb-apple .mx-fold > summary::before { transition: none; } }
+/* a compact head: the goal, one muted line, the brief and steps behind a toggle */
+html.hb-apple .mx-ctitle { font-size: 20px; line-height: 26px; }
+html.hb-apple .mx-cap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 4px; font-size: 12px; line-height: 16px; }
+html.hb-apple .mx-link { padding: 0; border: 0; background: none; font: inherit; font-weight: 590; color: var(--a-accent-text); cursor: pointer; }
+html.hb-apple .mx-link:hover { text-decoration: underline; }
+html.hb-apple .mx-chatmore[hidden] { display: none; }
+html.hb-apple .mx-sentence { margin: 10px 0 0; padding: 0 10px; font-size: 14px; line-height: 1.55; color: var(--a-label); }
+html.hb-apple .mx-chat .mx-sech { margin-top: 14px; }
+/* the team chat scrolls inside its own box and fills the window; drag the bottom-right corner to resize */
+html.hb-apple .mx-chatbox { height: calc(100vh - var(--a-toolbar) - 236px); height: calc(100dvh - var(--a-toolbar) - 236px); min-height: 240px; max-height: 90vh; overflow-y: auto; resize: vertical; background: none; border-radius: 0; border-top: 1px solid var(--a-sep); -webkit-overflow-scrolling: touch; }
+html.hb-apple .mx-newmsg { position: sticky; bottom: 84px; z-index: 3; display: block; margin: -34px auto 6px; box-shadow: 0 2px 8px var(--a-sep); }
 html.hb-apple .mx-newmsg[hidden] { display: none; }
-html.hb-apple .mx-compose { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 8px; margin: 0 -20px; padding: 12px 20px 44px; background: var(--a-window); box-shadow: 0 -8px 8px -8px var(--a-sep); }
-html.hb-apple .mx-compose .hb-field { flex: 1 1 auto; height: 28px; font-size: 13px; }
-html.hb-apple .mx-compose .btn { height: 28px; border-radius: var(--hb-bubble-r); }
+html.hb-apple .mx-compose { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 0 -20px; padding: 10px 20px 24px; background: var(--a-window); }
+html.hb-apple .mx-compose .hb-field { flex: 1 1 auto; height: 40px; padding: 0 14px; border-radius: 20px; font-size: 15px; }
+html.hb-apple .mx-compose .btn { height: 32px; border-radius: var(--hb-bubble-r); }
 
 /* running now: who was busy when, one lane a teammate */
 html.hb-apple .mx-lanes { margin: 0; padding: 12px 14px 10px; border-radius: 12px; background: var(--a-group); }
@@ -184,3 +236,4 @@ html.hb-apple .mx-needs > b { color: var(--a-orange); }
 html.hb-apple .hb-side .mx-mt small b.mx-needs-w { font-weight: 700; color: var(--a-orange); }
 html.hb-apple .hb-side .mx-needs-row .mx-mt b { color: var(--a-label); }
 html.hb-apple .hb-insp .f a.v { color: var(--a-label); text-decoration: underline; text-underline-offset: 2px; }
+html.hb-apple .mx-compose select.hb-field { height: 32px; padding: 0 8px; border-radius: 7px; font-size: 13px; }
