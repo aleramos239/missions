@@ -45,6 +45,8 @@ def check(brief, accounts):
             return "goal.days must be a whole number of weekdays from 1 to 20"
     elif "days" in g:
         return "goal.days is for eval goals only"
+    if brief.get("exits", "hm40") not in ("hm40", "hm60"):
+        return "exits must be hm40 or hm60"
     if not isinstance(brief.get("idea"), str) or not brief["idea"].strip():
         return "idea is missing"
     for k in ("fixed", "may_change"):
@@ -65,7 +67,8 @@ def _clean(b):
         if "days" in g:
             goal["days"] = g["days"]
     return {"goal": goal, "idea": b["idea"].strip(), "fixed": b["fixed"], "may_change": b["may_change"],
-            "fewest_trades_week": b["fewest_trades_week"], "notes": b["notes"]}
+            "fewest_trades_week": b["fewest_trades_week"], "notes": b["notes"],
+            **({"exits": b["exits"]} if "exits" in b else {})}
 
 
 def _ask_ok(a):

@@ -289,3 +289,9 @@ def test_days_refused(hb, d):
 def test_days_refused_on_points_goal(hb):
     b = {**GOOD, "goal": {"kind": "points", "target": 100, "days": 5}}
     assert briefing.check(b, hb.accounts_) == "goal.days is for eval goals only"
+
+
+def test_exits_hm40_or_hm60_only(hb):
+    assert briefing.check({**GOOD, "exits": "hm60"}, hb.accounts_) is None
+    assert briefing.check({**GOOD, "exits": "hm80"}, hb.accounts_)
+    assert briefing._clean({**GOOD, "exits": "hm60"})["exits"] == "hm60" and "exits" not in briefing._clean(GOOD)
