@@ -183,3 +183,28 @@ def test_the_stage_report_is_required_saved_and_read_by_the_next_stage(kit):
     assert "Report of stage 1" not in prompts(kit, "builder", "ideas")[0]
     chat = [e for e in store.events(kit.mid) if e["type"] == "chat" and "Report of stage 1" in (e.get("text") or "")]
     assert chat and chat[0]["for_workers"] and chat[0]["data"]["to_owner"]
+
+
+class _RefuseAll(dict):
+    def get(self, name, default=None):
+        return f"{name}: no box can reach 2 trades a week: the most is 0.7"
+
+
+def test_refused_cards_are_not_tries_and_a_stage_of_only_refusals_ends_on_the_stall_backstop(kit):
+    kit.fake.refuse_start = _RefuseAll()
+    eng = staged(kit, [{"stage": {"next": "fresh", "why": "x", "report": REPORT}}], tries=2, stages=2)
+    assert run(eng.run()) == "limit"  # stage 1 stalls, the review, stage 2 stalls: the last stage ended early
+    m = store.load(kit.mid)
+    assert m["versions"] == [] and len(m["unbuilt"]) == 6 and m["round"] == 6
+    assert [u["stage"] for u in m["unbuilt"]] == [1, 1, 1, 2, 2, 2]  # 3 refusals > 2 tries: the limit never hit, the stall did
+    review = prompts(kit, "lead", "stage")
+    assert len(review) == 1 and "ended by the engine" in review[0] and "0 tries used" in review[0]
+    b = kit.eng().board()
+    assert b["stage"]["try"] == 0 and b["tries"]["mission"] == 0 and len(b["tried"]) == 6
+    assert sum("is stalled" in e["text"] for e in store.events(kit.mid) if e["who"] == "engine") == 2
+
+
+def test_the_prompts_say_a_refusal_is_free_and_the_builder_may_recard_twice():
+    assert "costs no try" in roles._read("lead") and "three rounds in a row with nothing scored" in roles._read("lead")
+    b = roles._read("builder")
+    assert "at most 2 more" in b and "Never drop a fixed line of the brief or add a filter" in b and "`blueprint_card` once" not in b
