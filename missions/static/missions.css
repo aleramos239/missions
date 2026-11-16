@@ -172,3 +172,8 @@ html.hb-apple .hb-side .mx-dot.bad { background: var(--neg, oklch(0.62 0.2 25));
 html.hb-apple .hb-side .sh-chev { flex: none; }
 html.hb-apple .mx-del { margin-left: 12px; flex: none; }
 html.hb-apple .agroup .acct .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* "Needs you": the owner's one open question, at the top of the mission's page and on its sidebar row */
+html.hb-apple .mx-needs { margin: 0 0 14px; padding: 10px 14px; border-radius: 12px; background: var(--a-group); box-shadow: inset 3px 0 0 var(--a-orange); font-size: 13px; color: var(--a-label); }
+html.hb-apple .mx-needs > b { color: var(--a-orange); }
+html.hb-apple .hb-side .mx-mt small b.mx-needs-w { font-weight: 700; color: var(--a-orange); }
+html.hb-apple .hb-side .mx-needs-row .mx-mt b { color: var(--a-label); }

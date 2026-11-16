@@ -293,7 +293,8 @@ class Engine:
                 res = f"dropped: {v.get('why')}"
             elif g:
                 bad = [x["line"] for x in g.get("lines", []) if not x.get("ok")]
-                res = f"{st}, box {v.get('box_label')}, goal {_goal_scalar(g.get('goal') or {})}" \
+                gv = _goal_scalar(g.get("goal") or {})
+                res = f"{st}, box {v.get('box_label')}, goal {round(gv, 3) if isinstance(gv, float) else gv}" \
                     + (f", lines failed: {', '.join(bad)}" if bad else "") \
                     + (f", test months held={v['heard'].get('held')}: {v['heard'].get('line')}" if v.get("heard") else "")
             else:

@@ -91,6 +91,19 @@ def _badge(m):
             "waiting_homebase": "Homebase down"}.get(m["status"])
 
 
+def _needs(m):
+    """The one thing the owner must answer now, or None: the read's yes, or the Lead's open brief question."""
+    if m["status"] == "waiting_owner" and (v := m["pending"].get("read_for")):
+        return {"kind": "read", "q": f"{v} cleared in-sample. Read its test months?", "options": ["Yes, read its test months"]}
+    if m["status"] == "briefing":
+        for e in reversed([e for e in store.events(m["id"]) if e["type"] == "chat" and e["text"]]):
+            if e["who"] == "owner":
+                return None
+            if (a := (e.get("data") or {}).get("ask")) and isinstance(a, dict):
+                return {"kind": "ask", "q": a.get("q"), "options": a.get("options") or []}
+    return None
+
+
 T_SAID = re.compile(r"^\s*t\s+(-?\d+(?:\.\d+)?)")
 
 
@@ -175,6 +188,7 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     @app.get("/api/missions")
     async def sidebar():
         return [{"id": m["id"], "title": m["title"], "status": m["status"], "round": m["round"], "badge": _badge(m),
+                 "needs": _needs(m),
                  "stage": [m.get("stage", 1), ((m["limits"] or {}).get("stages") or {}).get("n", 1)],
                  "usage_used": m.get("usage_used"), "cost_usd": m.get("cost_usd"), "run_seconds": m.get("run_seconds")}
                 for m in store.missions()]
@@ -189,6 +203,8 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
             return {"error": str(e)}
         if "error" in out:
             store.event(mid, "chat", "engine", f"The brief stopped: {out['error']}", for_workers=False)
+        elif background and "ask" in out:  # the owner may have walked away after Start: tell him the Lead asks
+            system.alert(mid, "ask")
         return out
 
     @app.post("/api/missions")
@@ -204,7 +220,7 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     async def detail(mid: int):
         m = _mission(mid)
         board = engine.Engine(mid, hb=hb).board()
-        return {**m, "board": board, "right": _right(m, board)}
+        return {**m, "board": board, "right": _right(m, board), "needs": _needs(m)}
 
     @app.get("/api/missions/{mid}/events")
     async def past(mid: int, after: int = 0):

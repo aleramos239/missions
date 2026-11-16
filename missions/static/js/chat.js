@@ -106,6 +106,17 @@ export async function renderBrief(S, api) {
   }
 }
 
+// "Needs you": the one question the owner must answer now (m.needs from the server), with its answer right there
+export function renderNeeds(m) {
+  const el = $("#needsBar"), n = m && m.needs;
+  el.hidden = !n;
+  if (!n) return (el.innerHTML = "");
+  const key = JSON.stringify(n);
+  if (el.dataset.key === key) return; // unchanged: keep the buttons (and a click in flight) as they are
+  el.dataset.key = key;
+  el.innerHTML = `<b>Needs you:</b> <span>${esc(n.q)}</span><div class="mx-q">${n.options.map((o) => `<button class="btn btn-default btn-sm" type="button" data-${n.kind === "read" ? "read" : "reply"}="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
+}
+
 export function init({ S, api, reload }) {
   $("#who").onchange = filter;
   const say = async (to, text, sure) => {
@@ -128,6 +139,14 @@ export function init({ S, api, reload }) {
   };
   $("#briefCompose").onsubmit = (e) => { e.preventDefault(); const t = $("#briefMsg").value.trim(); if (t) { $("#briefMsg").value = ""; answer(t); } };
   $("#briefFeed").addEventListener("click", (e) => { const b = e.target.closest("[data-reply]"); if (b) answer(b.dataset.reply); });
+  $("#needsBar").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-reply], [data-read]"); if (!b) return;
+    $("#needsBar").querySelectorAll("button").forEach((x) => (x.disabled = true));
+    if (b.dataset.reply) { await answer(b.dataset.reply); $("#needsBar").dataset.key = ""; return; }
+    try { await api(`/api/missions/${S.id}/read/approve`, { method: "POST", body: { said: b.dataset.read } }); }
+    catch (x) { tell(x.message); $("#needsBar").dataset.key = ""; }
+    reload(true);
+  });
   $("#briefCard").addEventListener("click", async (e) => {
     const b = e.target.closest("#approveBtn"); if (!b) return;
     b.disabled = true;

@@ -14,7 +14,8 @@ RESERVE = 0.90
 UNKNOWN_WAIT = 900
 ALERTS = {"achieved": "goal reached", "limit": "a limit ran out", "out_of_reach": "out of reach",
           "waiting_plan": "waiting for the Claude plan to reset", "waiting_owner": "waiting for your yes to read the test months",
-          "crashed": "stopped by an error", "tool": "a new tool waits for your yes"}
+          "crashed": "stopped by an error", "tool": "a new tool waits for your yes",
+          "ask": "the Lead asks you one thing about the brief"}
 RUNNING = ("running", "waiting_homebase")  # Homebase being down is still mission time
 STEERING = "30-Projects/Onyx-Trading/Hunt/hunt-steering.md"
 

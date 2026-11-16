@@ -35,10 +35,14 @@ export default {
         acct({ nm: "Goal", val: goalText(g) }),
         acct({ nm: b.stage && b.stage.of > 1 ? "Stage" : "Tries used", val: b.stage ? stageText(b.stage) : `${b.tries.mission}` }),
         acct({ nm: "Time used", val: `${hm(m.run_seconds)}${lim.hours ? ` of ${lim.hours.n} h` : ""}` })]);
-      const reps = (b.stage && b.stage.reports || []).map((x) => `<details class="mx-rep"><summary>Stage ${x.stage} report</summary><div class="mcap" style="white-space:pre-wrap">${esc(x.report)}</div></details>`).join("");
+      const ENDED = { lead: " (the Lead ended it early)", stalled: " (ended: 3 rounds in a row with nothing scored)" };
+      const reps = (b.stage && b.stage.reports || []).map((x) => `<details class="mx-rep"><summary>Stage ${x.stage} report${ENDED[x.ended] || ""}</summary><div class="mcap" style="white-space:pre-wrap">${esc(x.report)}</div></details>`).join("");
       const head = r.best ? `${goalVal(g.kind, r.best.goal_value)} of ${goalVal(g.kind, g.target)}.` : "Nothing scored yet.";
       return title(head, r.best ? `Best so far: ${r.best.version}${r.best.box ? ", box " + r.best.box.split(" · ")[1] : ""}. ${scored} ${scored === 1 ? "try" : "tries"} scored.` : "The first table is still running.")
         + chart(vs, g) + `<h2 class="hb-sec-h">Where it stands</h2>` + rows + reps
+        + (b.stall ? `<div class="mcap">${b.stall} ${b.stall === 1 ? "round" : "rounds"} in a row with nothing scored. At 3 the stage ends by itself.</div>` : "")
+        + (b.closed && b.closed.length ? `<h2 class="hb-sec-h">Closed ideas</h2>` + group(b.closed.map((c) => acct({ nm: c.what, sub: c.reason || undefined, val: c.versions.join(", ") })))
+          + `<div class="mcap">Closed for this mission and this idea only. The team does not try them again.</div>` : "")
         + `<div class="mcap">A try under the luck bar could be luck from trying many versions: the bar rises with every try.</div>`;
     });
   },

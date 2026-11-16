@@ -322,3 +322,30 @@ def test_delete_refused_while_running_removed_when_stopped_and_id_not_reused():
     assert not store.mdir(mid).exists() and not (config.home() / "_work" / str(mid)).exists()
     assert call("GET", "/api/missions").json() == [] and call("DELETE", f"/api/missions/{mid}").status_code == 404
     assert mk() == mid + 1
+
+
+def test_needs_you_names_the_one_question(monkeypatch):
+    mid = mk(status="waiting_owner", pending={"read_for": "m1_v01"})
+    n = call("GET", f"/api/missions/{mid}").json()["needs"]
+    assert n["kind"] == "read" and "m1_v01" in n["q"] and n["options"]
+    assert call("GET", "/api/missions").json()[0]["needs"] == n
+    b = mk(status="briefing")
+    store.event(b, "chat", "lead", "One thing?", data={"ask": {"q": "Which account?", "options": ["A", "B"]}})
+    assert call("GET", f"/api/missions/{b}").json()["needs"] == {"kind": "ask", "q": "Which account?", "options": ["A", "B"]}
+    store.event(b, "chat", "owner", "A")
+    assert call("GET", f"/api/missions/{b}").json()["needs"] is None
+    assert call("GET", f"/api/missions/{mk()}").json()["needs"] is None  # running: nothing asks him
+
+
+def test_a_background_brief_question_alerts_the_owner(monkeypatch):
+    seen = []
+    monkeypatch.setattr(system, "alert", lambda mid, kind: seen.append(kind))
+    monkeypatch.setattr(briefing, "next_step", lambda *a, **k: asyncio.sleep(0, {"ask": {"q": "q", "options": ["a", "b"]}}))
+
+    async def go():  # the brief turn runs as a background task: give it a moment before the app goes away
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.make_app(hb=FakeHB())), base_url=BASE) as c:
+            await c.post("/api/missions", json={"sentence": "s", "team": TEAM, "test_months": "team"})
+            for _ in range(5):
+                await asyncio.sleep(0)
+    asyncio.run(go())
+    assert seen == ["ask"] and "ask" in system.ALERTS
