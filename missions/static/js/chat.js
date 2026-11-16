@@ -27,7 +27,7 @@ function feed(el, events, m) {
 export function renderChat(S) {
   const m = S.m, r = m.right, g = m.board.goal, b = r.best, t = m.board.tries.mission;
   $("#chatTitle").innerHTML = `${b ? `Best so far ${goalVal(g.kind, b.goal_value)}. Goal ${goalVal(g.kind, g.target)}.` : `Goal ${goalVal(g.kind, g.target)}. Nothing has scored yet.`}<br><span>${esc(m.sentence)}</span>`;
-  $("#chatCap").textContent = `Test months ${testMonths(m).toLowerCase()} · ${t} ${t === 1 ? "try" : "tries"} · the bar rises with every try`;
+  $("#chatCap").textContent = `Test months ${testMonths(m).toLowerCase()} · ${t} ${t === 1 ? "try" : "tries"}`;
   $("#stepRound").textContent = `Round ${m.round}`;
   $("#stepSince").textContent = "";
   const h = Math.floor(m.run_seconds / 3600), mi = Math.floor(m.run_seconds / 60) % 60;

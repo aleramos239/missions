@@ -43,7 +43,7 @@ export default {
         + (b.stall ? `<div class="mcap">${b.stall} ${b.stall === 1 ? "round" : "rounds"} in a row with nothing scored. At 3 the stage ends by itself.</div>` : "")
         + (b.closed && b.closed.length ? `<h2 class="hb-sec-h">Closed ideas</h2>` + group(b.closed.map((c) => acct({ nm: c.what, sub: c.reason || undefined, val: c.versions.join(", ") })))
           + `<div class="mcap">Closed for this mission and this idea only. The team does not try them again.</div>` : "")
-        + `<div class="mcap">A try under the luck bar could be luck from trying many versions: the bar rises with every try.</div>`;
+        + `<div class="mcap">A try under the luck bar could be luck. The bar stays at t 2 for every try.</div>`;
     });
   },
 };
