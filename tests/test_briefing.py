@@ -295,3 +295,20 @@ def test_exits_hm40_or_hm60_only(hb):
     assert briefing.check({**GOOD, "exits": "hm60"}, hb.accounts_) is None
     assert briefing.check({**GOOD, "exits": "hm80"}, hb.accounts_)
     assert briefing._clean({**GOOD, "exits": "hm60"})["exits"] == "hm60" and "exits" not in briefing._clean(GOOD)
+
+
+def test_a_years_goal():
+    y = {"kind": "years", "recent": [2025, 2026], "win_min": 0.4, "rest": "green"}
+    b = {**GOOD, "goal": y}
+    assert briefing.check(b, []) is None
+    assert briefing._clean(b)["goal"] == {**y, "target": 0.4}
+    for bad in ({"recent": []}, {"recent": [2025.0]}, {"win_min": 40}, {"win_min": 0}, {"rest": "red"}):
+        assert briefing.check({**GOOD, "goal": {**y, **bad}}, [])
+
+
+def test_a_years_goal_scores_its_weakest_recent_year():
+    from missions.engine import _goal_scalar
+    rows = [{"year": 2025, "win_rate": 0.5}, {"year": 2026, "win_rate": 0.42}]
+    assert _goal_scalar({"kind": "years", "recent": [2025, 2026], "value": rows}) == 0.42
+    assert _goal_scalar({"kind": "years", "recent": [2025, 2027], "value": rows}) == 0.0
+    assert _goal_scalar({"kind": "net", "value": 5.0}) == 5.0

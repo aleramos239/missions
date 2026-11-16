@@ -9,8 +9,8 @@ export const DOING = { ideas: { lead: "planning the round" }, build: { builder: 
   argue: { doubter: "reading the results", defender: "arguing for it" }, verdict: { lead: "writing the verdict" },
   read: { lead: "waiting on the Judge" } };
 
-export const goalVal = (kind, v) => v == null ? "none yet" : kind === "eval" ? pct(v) : kind === "points" ? `${pts(v)} pts` : money(v);
-export const goalText = (g) => g && g.kind ? (g.kind === "eval" ? `${pct(g.target)} pass` : goalVal(g.kind, g.target)) + (g.rule ? ` · ${g.rule}` : "") : "not set";
+export const goalVal = (kind, v) => v == null ? "none yet" : kind === "eval" || kind === "years" ? pct(v) : kind === "points" ? `${pts(v)} pts` : money(v);
+export const goalText = (g) => g && g.kind ? (g.kind === "eval" ? `${pct(g.target)} pass` : g.kind === "years" ? `${pct(g.target)} win in ${(g.recent || []).join(", ")}, other years green` : goalVal(g.kind, g.target)) + (g.rule ? ` · ${g.rule}` : "") : "not set";
 export function stopsText(l) {
   l = l || {};
   if (l.until_goal) return "the goal, or your Stop";

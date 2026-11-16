@@ -10,9 +10,10 @@ _IDEAS = ('{"ideas": [{"idea": "...", "family": "<a family blueprint_blocks list
 _C = {
     ("lead", "brief"): ('{"ask": {"q": "...", "options": ["...", "..."]}} to ask the owner one thing, '
                         'or, when the brief is ready, exactly this shape: {"brief": {"goal": {"kind": "eval" | "points" | '
-                        '"net", "target": 0.5, "rule": "<an account id from the board, eval only>", "days": 10}, "idea": "...", '
+                        '"net" | "years", "target": 0.5, "rule": "<an account id from the board, eval only>", "days": 10}, "idea": "...", '
                         '"exits": "hm40", "fixed": ["..."], "may_change": ["..."], "fewest_trades_week": 2, "notes": "..."}} '
-                        '(exits: hm40 default; hm60 adds fixed-point stops 15/25/40/60 pts, only when the owner asks for fixed points; an eval target is a share 0-1; points and net targets are numbers above 0; days: eval only, the weekdays the eval must pass within (default 10))'),
+                        '(exits: hm40 default; hm60 adds fixed-point stops 15/25/40/60 pts, only when the owner asks for fixed points; an eval target is a share 0-1; points and net targets are numbers above 0; days: eval only, the weekdays the eval must pass within (default 10); '
+                        'years: {"kind": "years", "recent": [2025, 2026], "win_min": 0.40, "rest": "green"}: recent years\' full-target win rate at least win_min, every other year net above 0, no target)'),
     ("builder", "ideas"): _IDEAS, ("doubter", "ideas"): _IDEAS, ("defender", "ideas"): _IDEAS,
     ("lead", "ideas"): ('{"plan": [{"version": "v08", "idea": "...", "family": "...", "why": "..."}]} '
                         "(at most 3 a round)"),

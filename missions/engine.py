@@ -57,6 +57,15 @@ class _Done(Exception):
         self.status = status
 
 
+def _goal_scalar(goal):
+    """A goal's value as one number for the board: a years goal reports its per-year rows; the board shows the weakest recent year's win rate."""
+    v = goal.get("value")
+    if goal.get("kind") != "years" or not isinstance(v, list):
+        return v
+    by = {r["year"]: r["win_rate"] for r in v}
+    return min((by.get(y, 0.0) for y in goal.get("recent") or []), default=None)
+
+
 def _ask_path(mid):
     return store.mdir(mid) / "ask"
 
@@ -242,13 +251,13 @@ class Engine:
         for v in m["versions"]:
             gate = v.get("gate") or {}
             out.append({"version": v["version"], "name": v["name"], "family": v.get("family"), "state": v["state"],
-                        "box": v.get("box_label"), "goal_value": (gate.get("goal") or {}).get("value"),
+                        "box": v.get("box_label"), "goal_value": _goal_scalar(gate.get("goal") or {}),
                         "lines_failed": [x["line"] for x in gate.get("lines", []) if not x.get("ok")],
                         "charges_standing": [x["charge"] for x in gate.get("charges", []) if not x.get("held")],
                         "heard": v.get("heard")})
         scored = [v for v in out if v["goal_value"] is not None and v["state"] not in ("dropped", "spent")]
         best = max(scored, key=lambda v: v["goal_value"])["version"] if scored else None
-        return {"goal": {"kind": g.get("kind"), "target": g.get("target"), "rule": g.get("rule")}, "round": m["round"],
+        return {"goal": {"kind": g.get("kind"), "target": g.get("target"), "rule": g.get("rule"), "recent": g.get("recent")}, "round": m["round"],
                 "tries": tries, "versions": out, "best": best, "reads": m["reads"]}
 
     async def _refresh_tries(self, family):

@@ -6,7 +6,7 @@ from datetime import date
 from . import digest as _digest, roles, store
 
 QUESTIONS_MAX = 6
-KINDS = ("eval", "points", "net")
+KINDS = ("eval", "points", "net", "years")
 RETRY = "Your last answer was refused: {why}. Fix it and answer again."
 NOW = "You have asked enough: write the brief now (the {\"brief\": {...}} block), no more questions."
 BUSY = ("running", "paused", "waiting_plan", "waiting_homebase", "waiting_owner")
@@ -33,7 +33,17 @@ def check(brief, accounts):
         return "goal is missing"
     if g.get("kind") not in KINDS:
         return f"goal.kind must be one of {list(KINDS)}"
-    t = g.get("target")
+    if g["kind"] == "years":
+        rc = g.get("recent")
+        if not isinstance(rc, list) or not rc or any(type(y) is not int or not 2017 <= y <= 2030 for y in rc):
+            return "goal.recent must be a list of years 2017-2030"
+        if not _num(g.get("win_min")) or not 0 < g["win_min"] < 1:
+            return "goal.win_min must be a share between 0 and 1 (0.40, not 40)"
+        if g.get("rest") != "green":
+            return 'goal.rest must be "green"'
+        t = g["win_min"]
+    else:
+        t = g.get("target")
     if not _num(t) or t <= 0:
         return "goal.target must be a number above 0"
     if g["kind"] == "eval":
@@ -61,7 +71,9 @@ def check(brief, accounts):
 
 def _clean(b):
     g = b["goal"]
-    goal = {"kind": g["kind"], "target": g["target"]}
+    goal = {"kind": g["kind"], "target": g["win_min"] if g["kind"] == "years" else g["target"]}
+    if g["kind"] == "years":
+        goal.update(recent=sorted(set(g["recent"])), win_min=g["win_min"], rest="green")
     if g["kind"] == "eval":
         goal["rule"] = g["rule"]
         if "days" in g:
