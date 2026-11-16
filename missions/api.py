@@ -175,7 +175,8 @@ def make_app(*, hb=_hb, run_turn=None, runner=False):
     @app.get("/api/missions")
     async def sidebar():
         return [{"id": m["id"], "title": m["title"], "status": m["status"], "round": m["round"], "badge": _badge(m),
-                 "stage": [m.get("stage", 1), ((m["limits"] or {}).get("stages") or {}).get("n", 1)]}
+                 "stage": [m.get("stage", 1), ((m["limits"] or {}).get("stages") or {}).get("n", 1)],
+                 "usage_used": m.get("usage_used"), "cost_usd": m.get("cost_usd"), "run_seconds": m.get("run_seconds")}
                 for m in store.missions()]
 
     async def brief_turn(mid, answer=None, background=False):

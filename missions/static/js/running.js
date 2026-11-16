@@ -20,6 +20,7 @@ export default {
     if (editing(el)) return;  // a repaint would reset the select the owner has open
     return mount(el, async () => {
       const [r, c, refused] = await Promise.all([api(`/api/missions/${m.id}/running`), api("/api/connections"), api(`/api/missions/${m.id}/refused`)]);
+      const all = await api("/api/missions").catch(() => []);
       const now = Date.now() / 1000, live = ["running", "waiting_homebase"].includes(m.status);
       const workers = r.workers.map((w) => {
         const doing = live && (DOING[w.state] || {})[w.role];
@@ -41,8 +42,12 @@ export default {
         acct({ nm: "Cost and run time", val: `$${r.cost_usd.toFixed(2)} · ${hm(r.run_seconds)}` }),
         `<div class="acct tall"><span class="grow"><span class="nm">Pause the hunt loop</span><span class="sub">${paused === null ? "the steering note cannot be read" : "so it does not compete for the slots"}</span></span><button class="switch" id="huntSw" type="button" role="switch" aria-checked="${paused === true}" aria-label="Pause the hunt loop"${paused === null ? " disabled" : ""}></button></div>`]);
       const ref = refused.length ? group(refused.map((x) => acct({ nm: x.tool, sub: x.why, val: new Date(x.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) }))) : `<div class="mcap">Nothing refused.</div>`;
+      const num = (v) => (typeof v === "number" ? v : 0), sum = (k) => all.reduce((a, x) => a + num(x[k]), 0);
+      const usage = all.length ? group([...all].sort((a, b) => b.id - a.id).map((x) => acct({ nm: `${x.title} #${x.id}`, sub: String(x.status).replace(/_/g, " "),
+        val: `${typeof x.usage_used === "number" ? pct(x.usage_used) : "—"} wk · $${num(x.cost_usd).toFixed(2)} · ${hm(num(x.run_seconds))}` }))
+        .concat(acct({ nm: "Total", val: `${pct(sum("usage_used"))} wk · $${sum("cost_usd").toFixed(2)} · ${hm(sum("run_seconds"))}` }))) : `<div class="mcap">No missions yet.</div>`;
       return title(`${busy} of 4 working.`, r.jobs.length ? `${r.jobs.length} test${r.jobs.length === 1 ? "" : "s"} running on this Mac.` : "No test is running.")
-        + sec("Team", team) + sec("Tests", tests) + sec("Machines", mach) + sec("Refused tool calls", ref, "Calls the team made that the Judge's door turned down.");
+        + sec("Team", team) + sec("Tests", tests) + sec("Machines", mach) + sec("Usage", usage, "Week share is the part of the Claude week each mission used.") + sec("Refused tool calls", ref, "Calls the team made that the Judge's door turned down.");
     }, (el) => {
       const rows = el.querySelector("#teamRows");
       if (rows) wire(rows, null, async () => {  // the whole team goes back; the engine reads it before its next turn

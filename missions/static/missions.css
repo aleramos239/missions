@@ -171,3 +171,4 @@ html.hb-apple .hb-side .mx-dot.warn { background: var(--warn, oklch(0.7 0.16 70)
 html.hb-apple .hb-side .mx-dot.bad { background: var(--neg, oklch(0.62 0.2 25)); }
 html.hb-apple .hb-side .sh-chev { flex: none; }
 html.hb-apple .mx-del { margin-left: 12px; flex: none; }
+html.hb-apple .agroup .acct .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

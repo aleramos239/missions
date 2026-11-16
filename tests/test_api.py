@@ -36,7 +36,7 @@ def test_unknown_mission_is_404():
 def test_sidebar_and_detail():
     mid = mk()
     r = call("GET", "/api/missions").json()
-    assert r[0]["id"] == mid and {"title", "status", "round", "badge"} <= set(r[0])
+    assert r[0]["id"] == mid and {"title", "status", "round", "badge", "usage_used", "cost_usd", "run_seconds"} <= set(r[0])
     d = call("GET", f"/api/missions/{mid}").json()
     assert d["id"] == mid and "board" in d and d["right"]["goal"]["target"] == 3.0
     assert "tries" in d["right"] and "luck" in d["right"]
