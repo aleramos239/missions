@@ -112,7 +112,7 @@ function paint(scroll = true) {
   $("#tbTitle").textContent = m ? m.title : S.page === "conn" ? "Connections" : S.page === "home" ? "Missions" : "New mission";
   $("#tbSub").textContent = m ? `${statusWord(m)} · goal ${goalText(m.board.goal)}` : S.page === "conn" ? "Claude and the Lab" : S.page === "home" ? "Every mission" : "Nothing runs yet";
   panel.toolbar(m || null);
-  const del = $("#delBtn"); del.hidden = !m; del.disabled = !!m && !canDelete(m); del.title = del.disabled ? "Stop it first" : "Delete this mission";
+  const del = $("#delBtn"); del.hidden = !m || !canDelete(m); del.title = "Delete this mission";  // hidden while busy: the toolbar has no room at 800 px
   H.classList.toggle("hb-insp-off", !m || H.dataset.inspShut === "1" || window.innerWidth < NARROW);
   if (!m) { ["pMission", "pNow", "pBrief"].forEach((i) => ($("#" + i).innerHTML = "")); return; }
   panel.render(m);
