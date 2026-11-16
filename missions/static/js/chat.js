@@ -16,12 +16,15 @@ function row(e, m) {
   const who = WHO[e.who] || cap(String(e.who || "?"));
   const tag = e.who === "judge" ? "code" : e.who === "owner" ? (e.to ? `to ${cap(String(e.to))}` : "") : m.team[e.who] ? cap(String(m.team[e.who].model)) : "";
   const line = e.data && typeof e.data.line === "string" ? `<div class="raw">${esc(e.data.line)}</div>` : "";
+  if (e.type === "talk")  // a worker's working notes: two lines, a click opens the rest (kept open across repaints)
+    return `<div class="feed-row talk" data-who="${esc(who)}" data-n="${e.n}"><span class="t">${clock(e.at)}</span><div class="h"><b>${esc(who)}</b><span class="tag">notes</span><details${opened.has(e.n) ? " open" : ""}><summary>${esc(e.text)}</summary></details></div></div>`;
   return `<div class="feed-row${who === "You" ? " you" : ""}" data-who="${esc(who)}" data-n="${e.n}"><span class="t">${clock(e.at)}</span><div class="h"><b>${esc(who)}</b>${tag ? `<span class="tag">${esc(tag)}</span>` : ""}<p>${esc(e.text)}</p></div>${line}</div>`;
 }
 const chatOnly = (events) => events.filter((e) => e.type === "chat" && e.text);
 
+const opened = new Set();  // the talk rows the owner opened
 function feed(el, events, m) {
-  el.innerHTML = chatOnly(events).map((e) => row(e, m)).join("");
+  el.innerHTML = events.filter((e) => (e.type === "chat" || e.type === "talk") && e.text).map((e) => row(e, m)).join("");
 }
 
 export function renderChat(S) {
@@ -119,6 +122,10 @@ export function renderNeeds(m) {
 
 export function init({ S, api, reload }) {
   $("#who").onchange = filter;
+  $("#feed").addEventListener("toggle", (e) => {  // toggle does not bubble: caught on the way down
+    const n = Number(e.target.closest("[data-n]").dataset.n);
+    if (e.target.open) opened.add(n); else opened.delete(n);
+  }, true);
   const say = async (to, text, sure) => {
     const out = await api(`/api/missions/${S.id}/chat`, { method: "POST", body: { to, text, ...(sure ? { sure: true } : {}) } });
     if (out.warn) return (await sure(out.warn, { yes: "Send anyway", no: "Don't send" })) ? say(to, text, true) : false;

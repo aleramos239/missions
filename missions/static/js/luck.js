@@ -12,7 +12,7 @@ const MARK = (ok) => (ok === true ? "ok" : ok === false ? "no" : "lock");
 function words(events, version, charge) {
   const pre = `${version} · ${charge}:`;
   return ["doubter", "defender"].map((who) => {
-    const e = events.filter((x) => x.who === who && typeof x.text === "string" && x.text.startsWith(pre)).pop();
+    const e = events.filter((x) => x.type === "chat" && x.who === who && typeof x.text === "string" && x.text.startsWith(pre)).pop();
     return e ? `${who === "doubter" ? "Doubter" : "Defender"}: ${e.text.slice(pre.length).trim()}` : null;
   }).filter(Boolean);
 }

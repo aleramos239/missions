@@ -19,12 +19,14 @@ def test_a_goal_that_cannot_be_reached_ends_out_of_reach_with_no_read(kit):
     fill(kit, range(1, 20), clear=False)
     orig = kit.turns.default
 
-    def default(role, step, prompt):  # reach turns false after 6 tries
-        if len(store.load(kit.mid)["versions"]) >= 6:
-            kit.fake.reach.d["fvg"] = {"family": "fvg", "reachable": False}
+    eng = kit.eng()
+
+    def default(role, step, prompt):  # two empty rounds after 6 tries (no reach check since 2026-11-16: set them here)
+        if len(eng.m["versions"]) >= 6:
+            eng.m["empty_rounds"] = 2
         return orig(role, step, prompt)
     kit.turns.default = default
-    assert run(kit.eng().run()) == "out_of_reach"
+    assert run(eng.run()) == "out_of_reach"
     m = store.load(kit.mid)
     assert m["status"] == "out_of_reach" and m["reads"] == 0 and len(m["versions"]) >= 6
     assert kit.fake.started == [] and not any(c[0] == "start_read" for c in kit.fake.calls)

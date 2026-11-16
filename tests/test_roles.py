@@ -36,7 +36,7 @@ def test_prompt(role, step):
     assert BLIND in p and "Plain, short words" in p
     assert not re.findall(r"\{[A-Za-z_]+\}", p)
     if (role, step) == ("builder", "build"):
-        assert '"built"' in p and "wait_s" in p
+        assert '"built"' in p and "blueprint_card" in p and "wait_s" not in p
     if step == "owner":
         assert '"reply"' in p
 

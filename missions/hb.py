@@ -89,6 +89,34 @@ def mc(mid, name, box):
     return door("mc", mid, _name(name), _box(box))
 
 
+def start(mid, name):
+    """The Judge starts a carded version's in-sample table: {"job_id"} at once, or Refused (a twin, too few trades)."""
+    return door("start", mid, _name(name), timeout=900)
+
+
+def probe(mid, name):
+    return door("probe", mid, _name(name), timeout=900)
+
+
+def check(mid, name):
+    """The code check of a version whose table is done: {"name", "passed", "failed": [line ids]}."""
+    return door("check", mid, _name(name), timeout=900)
+
+
+CARD_CAP = 3000
+
+
+def card_example(mid, base=None):
+    """The exact blueprint_card args (name, card, settings) of the base version, or else of this mission's newest accepted card
+    (its newest card row); read-only from its spec.json. None when there is none."""
+    name = base or next((r.get("ref") for r in reversed(ledger(mid)) if r.get("kind") == "card" and r.get("ref")), None)
+    sp = idea_spec(name) if name else None
+    if not isinstance(sp, dict) or not sp.get("card"):
+        return None
+    text = json.dumps({"name": sp.get("name") or name, "card": sp["card"], "settings": sp.get("run") or {}})
+    return text if len(text) <= CARD_CAP else None  # a cut example is broken json and would teach the wrong shape
+
+
 # ---- the brief file and the mission's files in Homebase
 
 def _hdir(mid):
@@ -195,6 +223,11 @@ def idea_spec(name):
         return json.loads((config.ideas_root() / _name(name) / "spec.json").read_text())
     except (OSError, ValueError):
         return None
+
+
+def card(mid, name):
+    """The Judge's report card of a version's finished in-sample table: {"line", "text", "data"} (the owner's score)."""
+    return door("card", mid, _name(name))
 
 
 def job(job_id):

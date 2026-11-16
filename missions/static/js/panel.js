@@ -45,6 +45,12 @@ export function toolbar(d) {
   document.getElementById("tbWord").textContent = d.status === "running" ? "Working" : statusWord(d);
   const chip = d.step ? `${STEP_WORD[d.step] || "Working"} · round ${d.round}` : `round ${d.round}`;
   document.getElementById("tbChip").textContent = chip; document.getElementById("tbChipS").textContent = `round ${d.round}`;
-  const p = document.getElementById("pauseBtn");
-  p.textContent = live ? "Pause" : "Resume"; p.dataset.act = live ? "pause" : "resume";
+  const p = document.getElementById("pauseBtn"), b = runButton(d);
+  p.textContent = b.text; p.dataset.act = b.act;
+}
+
+// the run button: Pause while live, Read test months while the engine waits for the owner's yes, else Resume
+export function runButton(d) {
+  if (d.status === "waiting_owner" && d.pending && d.pending.read_for) return { text: "Read test months", act: "read" };
+  return LIVE.includes(d.status) ? { text: "Pause", act: "pause" } : { text: "Resume", act: "resume" };
 }

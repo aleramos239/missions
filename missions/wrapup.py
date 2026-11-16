@@ -65,6 +65,8 @@ def note(m, board) -> Path:
         if h:
             s += f"; test months: {'held' if h.get('held') else 'broke'}, {h.get('line') or 'no line'}"
         L.append(s)
+    if cb := m.get("unbuilt"):
+        L += ["", "## Could not be built or started", ""] + [f"- {c['idea']} ({c.get('family')}): {c.get('why')}, round {c.get('round')}" for c in cb]
     L += ["", f"**Cost.** ${m.get('cost_usd', 0):.2f}, {int(m.get('run_seconds', 0)) // 60} minutes of work.", "",
           "Related: [[missions-app-owner-decisions-2026-11-14]], [[what-lives-what-is-dead-2026-11-07]]", ""]
     _edit(p, lambda _: "\n".join(L))

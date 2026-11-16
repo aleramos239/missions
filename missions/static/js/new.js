@@ -5,7 +5,7 @@ const ROLES = [["lead", "Lead", "plans each round, talks to you, writes the brie
   ["defender", "Defender", "argues for what works, asks for the next run"]];
 // name, key, value key, options [value, label], default, text when on, text when off
 const LIMS = [
-  ["Tries a stage", "tries", "n", [10, 20, 40, 80, 160].map((n) => [n, `${n} tries`]), 20, "then the team stops, looks at everything and the Lead picks the next stage", "no limit · the luck bar still rises each try, so more tries can't fake a pass"],
+  ["Tries a stage", "tries", "n", [10, 20, 40, 80, 160].map((n) => [n, `${n} tries`]), 20, "then the team stops, looks at everything and the Lead picks the next stage", "no limit · the luck bar stays at t 2; the test months are the real luck check"],
   ["Stages", "stages", "n", [1, 2, 3, 5, 8].map((n) => [n, n === 1 ? "1 stage" : `${n} stages`]), 3, "after the last stage it stops and reports the closest honest result", "one stage"],
   ["Time", "hours", "n", [[2, "2 hours"], [4, "4 hours"], [8, "8 hours"], [24, "1 day"], [72, "3 days"], [168, "1 week"]], 8, "then it stops and reports the closest honest result", "no limit · runs until the goal is reached or you press Stop"],
   ["Claude usage", "usage", "pct", [10, 25, 40, 60, 80].map((n) => [n, `${n} % of plan`]), 40, "share of your Claude plan this mission may use, then it stops", "no limit · if your plan runs out, the team waits for it to reset, then carries on"],

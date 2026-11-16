@@ -51,6 +51,11 @@ html.hb-apple .mx-chat .feed .h .tag { margin-left: 6px; vertical-align: 1px; }
 html.hb-apple .mx-chat .feed .h p { margin: 2px 0 0; max-width: 64ch; }
 html.hb-apple .mx-chat .feed .raw { padding-left: 86px; }
 html.hb-apple .mx-chat .feed-row.you .h p { color: var(--a-label); }
+/* a worker's working notes: lighter, two lines until clicked open */
+html.hb-apple .mx-chat .feed-row.talk details { margin: 2px 0 0; max-width: 64ch; }
+html.hb-apple .mx-chat .feed-row.talk summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; list-style: none; cursor: pointer; white-space: pre-wrap; font-size: 12px; line-height: 16px; color: var(--a-label-2); }
+html.hb-apple .mx-chat .feed-row.talk summary::-webkit-details-marker { display: none; }
+html.hb-apple .mx-chat .feed-row.talk details[open] summary { display: block; -webkit-line-clamp: unset; }
 /* the team chat scrolls inside its own box; drag the bottom-right corner to resize */
 html.hb-apple .mx-chatbox { height: calc(100vh - 520px); min-height: 240px; max-height: 90vh; overflow-y: auto; resize: vertical; -webkit-overflow-scrolling: touch; }
 html.hb-apple .mx-newmsg { position: sticky; bottom: 70px; z-index: 3; display: block; margin: -34px auto 6px; box-shadow: 0 2px 8px var(--a-sep); }

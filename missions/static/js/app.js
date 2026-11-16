@@ -65,7 +65,7 @@ function onEvent(e) {
   if (S.events.some((x) => x.n === e.n)) return;
   S.events.push(e);
   paint(false);
-  if (e.type !== "chat" || e.who === "lead" || e.who === "judge") reload(true);
+  if ((e.type !== "chat" && e.type !== "talk") || e.who === "lead" || e.who === "judge") reload(true);
   const pg = PAGE[S.page];
   if (view() === "other" && pg && pg.on.includes(e.type)) showPage();
 }
@@ -130,7 +130,11 @@ $("#hbInspBtn").onclick = () => { H.dataset.inspShut = H.dataset.inspShut === "1
 $("#gearBtn").onclick = $("#labPill").onclick = () => go("#/conn");
 $("#openBrief").onclick = () => go(`#/m/${S.id}/brief`);
 $("#pauseBtn").onclick = async (e) => {
-  try { await api(`/api/missions/${S.id}/${e.currentTarget.dataset.act}`, { method: "POST" }); } catch (x) { tell(x.message); }
+  const b = e.currentTarget;
+  try {
+    if (b.dataset.act === "read") await api(`/api/missions/${S.id}/read/approve`, { method: "POST", body: { said: b.textContent } });
+    else await api(`/api/missions/${S.id}/${b.dataset.act}`, { method: "POST" });
+  } catch (x) { tell(x.message); }
   reload(true);
 };
 $("#delBtn").onclick = async () => {

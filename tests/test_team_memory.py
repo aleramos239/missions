@@ -92,7 +92,7 @@ def test_a_stall_warns_the_lead_then_the_engine_ends_the_stage(kit):
     assert "The stage is stalled: 2 rounds" in v[4] and "The stage is stalled" not in v[3]  # stage 2 counts from 0 again
     assert "The last stage ended early" in " ".join(lines(kit))
     # the tried list reaches the workers, across rounds, with the Judge's reason
-    assert "v01 (stage 1) [fvg] plan idea" in prompts(kit, "builder", "ideas")[1] and "dropped: boom" in prompts(kit, "doubter", "ideas")[1]
+    assert "v01 (stage 1) [fvg] plan idea" in prompts(kit, "builder", "ideas")[1] and "dropped: boom" in prompts(kit, "builder", "ideas")[1]  # (the Doubter writes only once something is scored)
 
 
 def test_a_score_resets_the_stall(kit):
@@ -113,7 +113,7 @@ def test_the_leads_orders_reach_the_workers(kit):
         return orig()
     eng._round_start = rs
     run(eng.run())
-    p = prompts(kit, "defender", "ideas")
+    p = prompts(kit, "builder", "ideas")  # (the Defender writes only once something is scored)
     assert "The Lead's orders for this round" not in p[0]
     assert "The Lead's orders for this round (they bind what you propose" in p[1] and "try a wider stop" in p[1]
 

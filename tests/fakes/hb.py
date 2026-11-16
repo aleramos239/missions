@@ -44,6 +44,34 @@ class FakeHB:
     def mc(self, mid, name, box):
         return self._get(self.mcs, (name, box), ("mc", mid, name, box))
 
+    def start(self, mid, name):
+        """A carded name starts (made_ gets its wf row and job j1); fake.refuse_start[name] = "why" refuses it."""
+        self.calls.append(("start", mid, name))
+        why = getattr(self, "refuse_start", {}).get(name)
+        if isinstance(why, Exception):
+            raise why
+        if why:
+            raise Refused(why)
+        if not any(r.get("kind") == "card" and r.get("ref") == name for r in self.ledgers.get(mid, [])):
+            raise Refused(f"{name}: no card of it on the mission's ledger")
+        self.made_[(mid, name)] = {"wf": True, "job_id": "j1"}
+        return {"job_id": "j1"}
+
+    def probe(self, mid, name):
+        self.calls.append(("probe", mid, name))
+        return {"per_value": {"5": 3.0}, "most": 3.0, "floor": 2.0}
+
+    def check(self, mid, name):
+        self.calls.append(("check", mid, name))
+        r = getattr(self, "checks", {}).get(name, {"name": name, "passed": True, "failed": []})
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    def card_example(self, mid, base=None):
+        self.calls.append(("card_example", mid, base))
+        return getattr(self, "card_example_", None)
+
     def write_brief(self, mid, brief):
         self.calls.append(("write_brief", mid, brief))
         if "drafts" in brief:
@@ -105,6 +133,9 @@ class FakeHB:
     def read_result(self, mid, name):
         self.calls.append(("read_result", mid, name))
         return self.reads.get(name)
+
+    def card(self, mid, name):
+        return self._get(self.__dict__.setdefault("cards", {}), name, ("card", mid, name))
 
 
 class _Reach:

@@ -13,6 +13,7 @@ from . import digest as _digest, hb as _hb, roles, store, system as _system, wor
 STEPS = ("ideas", "build", "wait", "check", "argue", "verdict", "read", "stage")
 NO_TRY = "no box has a trade"  # a version the Judge dropped for this tested nothing: not a try
 ROLES3 = ("builder", "doubter", "defender")
+IDEAS_MAX = {"builder": 3, "doubter": 1, "defender": 2}
 WORKING = ("running", "waiting_plan", "waiting_homebase")
 JSON_RETRY = "Your last message had no json block I could read. End your message with the json block."
 JOB_POLL, READ_POLL, JOB_LIMIT = 30, 20, 90 * 60
@@ -30,6 +31,13 @@ _answers = {}  # mid -> the one answer task
 def _plain(text, cap=200):
     """A door refusal for a worker: its words, minus every token that holds a digit, so it can carry no number."""
     return " ".join(w for w in str(text).split() if not re.search(r"\d", w))[:cap] or "The Judge refused."
+
+
+def _said(e, cap=200):
+    """A start refusal for the team: the Judge's own one-line sentence as it is (in-sample trade counts and version names only);
+    anything longer or of several lines (a crash dump) loses its numbers like every other refusal."""
+    t = str(e).strip()
+    return t[:cap] if "\n" not in t and len(t) <= 300 else _plain(t, cap)
 
 
 class _NoSystem:
@@ -69,6 +77,17 @@ def _goal_scalar(goal):
         return v
     by = {r["year"]: r["win_rate"] for r in v}
     return min((by.get(y, 0.0) for y in goal.get("recent") or []), default=None)
+
+
+def _settings_text(spec, cap=160):
+    """A version's settings as compact k=v text for the board (from its spec.json), at most cap characters."""
+    run = (spec or {}).get("run") or {}
+    if not run:
+        return ""
+    bits = [f"family={run.get('family')}"] + [f"{k}={v}" for k, v in (run.get("fixed") or {}).items()]
+    bits += [f"{k}={','.join(map(str, v)) if isinstance(v, list) else v}" for k, v in (run.get("params") or {}).items()]
+    bits += [f"{k}={json.dumps(run[k], separators=(',', ':'))}" for k in ("limits", "filters") if run.get(k)]
+    return " ".join(bits)[:cap]
 
 
 def _norm(text):
@@ -267,7 +286,7 @@ class Engine:
                         "box": v.get("box_label"), "goal_value": _goal_scalar(gate.get("goal") or {}),
                         "lines_failed": [x["line"] for x in gate.get("lines", []) if not x.get("ok")],
                         "charges_standing": [x["charge"] for x in gate.get("charges", []) if not x.get("held")],
-                        "heard": v.get("heard")})
+                        "heard": v.get("heard"), "note": v.get("card_line"), "settings": v.get("settings")})
         scored = [v for v in out if v["goal_value"] is not None and v["state"] not in ("dropped", "spent")]
         best = max(scored, key=lambda v: v["goal_value"])["version"] if scored else None
         return {"goal": {"kind": g.get("kind"), "target": g.get("target"), "rule": g.get("rule"), "recent": g.get("recent")}, "round": m["round"],
@@ -287,10 +306,11 @@ class Engine:
         out = []
         for v in self._all_tried()[-TRIED_MAX:]:
             g, st = v.get("gate") or {}, v["state"]
+            note = (v.get("card_line") or "").split(": ", 1)[-1]  # the Judge's one-line read of the table, without the name
             if st == "unbuilt":
-                res = f"build failed: {v.get('why')}"
+                res = v["why"] if str(v.get("why")).startswith("not started") else f"build failed: {v.get('why')}"
             elif st == "dropped":
-                res = f"dropped: {v.get('why')}"
+                res = f"dropped: {note or v.get('why')}"
             elif g:
                 bad = [x["line"] for x in g.get("lines", []) if not x.get("ok")]
                 gv = _goal_scalar(g.get("goal") or {})
@@ -299,8 +319,9 @@ class Engine:
                     + (f", test months held={v['heard'].get('held')}: {v['heard'].get('line')}" if v.get("heard") else "")
             else:
                 res = st
-            out.append(f"{v['version']} (stage {v.get('stage', 1)}) [{v.get('family')}] "
-                       f"{(v.get('idea') or '')[:TRIED_CAP]} -> {res[:TRIED_CAP]}")
+            out.append(f"{v['version']} (stage {v.get('stage', 1)}) [{v.get('family')}] {(v.get('idea') or '')[:TRIED_CAP]}"
+                       + (f" {{{v['settings'][:TRIED_CAP]}}}" if v.get("settings") else "") + f" -> {res[:TRIED_CAP]}"
+                       + (f" | Judge: {note}" if note and st != "dropped" else ""))
         return out
 
     async def _refresh_tries(self, family):
@@ -347,11 +368,16 @@ class Engine:
             if not ok:
                 await self._wait_plan(resets)
                 continue
+            t0 = self.clock()
             board = {k: v for k, v in self.board().items() if k != "versions"}  # "tried" says the same, shorter
             pr = roles.prompt(role, step, brief=self._brief_for(), board=board, chat=chat, ask=ask or None,
                               digest=digest)
             t = await self.run_turn(self.mid, role, pr, model=team["model"], effort=team["effort"],
                                     session_id=session, **kw)
+            store.event(self.mid, "turn", role, step, for_workers=False, data={  # the owner's Running page only
+                "secs": round(self.clock() - t0, 1), "cost": t.cost_usd or 0, "ok": t.ok, "why": t.why,
+                "tools": [c.get("name", "").removeprefix(worker.PREFIX) for c in t.tool_calls],
+                "model": team["model"], "effort": team["effort"]})
             self.system.note_rate(t.rate)
             if w := self.system.usage().get("seven_day"):
                 if self.m["usage_start"] is None:
@@ -385,9 +411,12 @@ class Engine:
         if session and used.get(role) not in (None, self._team(role)["model"]):
             session = None  # a resumed session cannot change model: this role starts fresh
             self.m["sessions"].pop(role, None)
+        said = None
         for _ in (0, 1):
             t = await self._once(role, step, chat, msg, session, kw, digest)
             if t.ok:
+                if (talk := roles.say(t.text)[:6000]) and talk != said:  # the owner's working notes; never to workers
+                    said = store.event(self.mid, "talk", role, talk, data={"step": step}, for_workers=False)["text"]
                 self.m["sessions"][role] = t.session_id or session
                 used[role] = self.m["team"][role]["model"]
                 self._save()
@@ -486,6 +515,11 @@ class Engine:
         text = f"Work only on this idea: variations of it. Base {version}: {idea or 'see its settings'}."
         if spec:
             text += f" Its settings: {json.dumps(spec)[:2000]}"
+        try:
+            c = self.hb.card(mission if mission is not None else self.mid, name)
+            text += f" Base report card: {c['text']}"
+        except (_hb.Refused, _hb.Down, KeyError, TypeError):
+            pass  # no card on file: the focus goes without it
         self.m["pending"]["focus"] = {"stage": self._stage_n(), "mode": "narrow", "base": version, "text": text}
         self._save()
 
@@ -570,18 +604,24 @@ class Engine:
             self._digest = _digest.digest()
         return self._digest
 
+    def _has_score(self):
+        """Something to doubt or defend: a gated version, or the stage narrowed on a base."""
+        return any(v.get("gate") for v in self.m["versions"]) or \
+            (self.m["pending"].get("focus") or {}).get("mode") == "narrow"
+
     async def _ideas(self):
         m, p = self.m, self.m["pending"]
         alone = (f"The Lead's orders for this round (they bind what you propose; bring your own angle inside them): "
                  f"{p['next']}") if p.get("next") else ""
-        res = await asyncio.gather(*[self._turn(r, "ideas", alone, digest=self._digest_text()) for r in ROLES3])
+        writers = ROLES3 if self._has_score() else ("builder",)
+        res = await asyncio.gather(*[self._turn(r, "ideas", alone, digest=self._digest_text()) for r in writers])
         ideas = {}
-        for r, (_, rep) in zip(ROLES3, res):
-            ideas[r] = [i for i in ((rep or {}).get("ideas") or [])[:3]
+        for r, (_, rep) in zip(writers, res):
+            ideas[r] = [i for i in ((rep or {}).get("ideas") or [])[:IDEAS_MAX[r]]
                         if isinstance(i, dict) and isinstance(i.get("idea"), str) and isinstance(i.get("family"), str)]
             for i in ideas[r]:
                 self._say(r, f"{i['idea']} ({i['family']}) {i.get('why', '')}".strip(), for_workers=False)
-        ask = ["The three ideas:"] + [f"{r}: {i}" for r in ROLES3 for i in ideas[r]]
+        ask = ["The ideas:"] + [f"{r}: {i}" for r in writers for i in ideas[r]]
         if p.get("fixes"):
             ask += ["The Defender's fixes from last round:", str(p["fixes"])]
         if p.get("plan_change"):
@@ -615,16 +655,7 @@ class Engine:
             p["vn"] = n = p.get("vn", max((int(v["version"][1:]) for v in m["versions"]), default=0)) + 1
             row = {"version": f"v{n:02d}", "name": roles.version_name(self.mid, n), "idea": r["idea"],
                    "family": r["family"], "why": r.get("why", "")}
-            try:
-                reach = await self._h("reach", self.mid, r["family"])
-                why = None if reach.get("reachable") else \
-                    f"the luck bar needed is above anything {r['family']} has shown"
-            except _hb.Refused as e:
-                why, unchecked = _plain(e), True
-            if why:
-                self._judge(f"{row['version']} is dropped: {why}.")
-            else:
-                plan.append(row)
+            plan.append(row)  # no reach check: the luck bar is a flat t 2 (owner 2026-11-16); the Judge's start refuses what cannot trade
         p["plan"] = plan
         if plan:
             p["fixes"] = p["plan_change"] = None
@@ -668,35 +699,72 @@ class Engine:
         self._save()
         return True
 
+    async def _carded(self):
+        return {r.get("ref") for r in await self._h("ledger", self.mid) or [] if r.get("kind") == "card"}
+
+    def _example_base(self):
+        """The base version's name when this stage is narrowed on one, else None."""
+        f = self.m["pending"].get("focus") or {}
+        if f.get("mode") != "narrow" or not f.get("base"):
+            return None
+        if v := self._v(f["base"]):
+            return v["name"]
+        b = (self.m["brief"] or {}).get("base") or {}
+        return f"m{b['mission']}_{b['version']}" if b.get("version") == f["base"] and b.get("mission") else None
+
+    async def _start_all(self, rows, jobs, refused):
+        """The Judge starts each carded row's table, all at once; a refusal is not a try."""
+        res = await asyncio.gather(*[self._h("start", self.mid, r["name"]) for r in rows], return_exceptions=True)
+        for r, x in zip(rows, res):
+            if isinstance(x, _hb.Refused):
+                refused[r["name"]] = _said(x)
+                self._judge(f"{r['version']} not started: {refused[r['name']]}.")
+            elif isinstance(x, BaseException):
+                raise x
+            else:
+                jobs[r["version"]] = (x or {}).get("job_id")
+
     async def _build(self):
-        plan, jobs, fails = self.m["pending"]["plan"], {}, {}
-        for attempt in (0, 1):
-            for r in plan:
-                await self._register(r, jobs.get(r["version"]))
-            left = [r for r in plan if not self._v(r["name"])]
-            if not left:
+        """The Builder writes the cards; the engine has the Judge start every carded version's table. Only the ledger counts."""
+        plan, jobs, refused, failed = self.m["pending"]["plan"], {}, {}, {}
+        for r in plan:  # (a resume: a table started before the app stopped)
+            await self._register(r, None)
+        for attempt in (0, 1, 2):  # at most two Builder turns: the second only for cards still missing
+            carded = await self._carded()
+            if go := [r for r in plan if not self._v(r["name"]) and r["name"] in carded and r["name"] not in refused]:
+                await self._start_all(go, jobs, refused)
+                for r in go:
+                    await self._register(r, jobs.get(r["version"]))
+            left = [r for r in plan if not self._v(r["name"]) and r["name"] not in refused and r["name"] not in carded]
+            if not left or attempt == 2:
                 break
-            ask = "Make these versions and start their tables:\n" + "\n".join(
+            ask = "Write the cards of these versions:\n" + "\n".join(
                 f"{r['version']} ({r['name']}): {r['idea']} [{r['family']}] {r['why']}" for r in left)
             if done := [r["name"] for r in plan if self._v(r["name"])]:
                 ask += f"\nAlready on the ledger, do not make them again: {', '.join(done)}"
+            if ex := await self._h("card_example", self.mid, self._example_base()):
+                ask += f"\nA card this tool accepted before, copy its shape:\n{ex}"
             if attempt:
                 ask = "These are not on the ledger: " + ", ".join(r["name"] for r in left) + ". Make them now.\n" + ask
             _, rep = await self._turn("builder", "build", ask, max_tool_calls=60, timeout_s=1800)
-            for b in (rep or {}).get("built") or []:
-                if isinstance(b, dict):
-                    jobs[b.get("version")] = b.get("job_id")
-            for f in (rep or {}).get("failed") or []:
-                if isinstance(f, dict) and isinstance(f.get("why"), str):
-                    fails[f.get("version")] = f["why"]
+            failed.update({f.get("version"): str(f.get("why") or "")[:200] for f in (rep or {}).get("failed") or []
+                           if isinstance(f, dict)})
         for r in plan:
-            if not await self._register(r, jobs.get(r["version"])):
+            if r["name"] in refused:
+                why = f"not started: {refused[r['name']]}"
+            elif await self._register(r, jobs.get(r["version"])):
+                continue
+            else:
                 self._judge(f"{r['version']} is not on the ledger and is dropped.")
-                un = self.m.setdefault("unbuilt", [])
-                if not any(u["name"] == r["name"] for u in un):  # a resumed build does not list it twice
-                    un.append({"version": r["version"], "name": r["name"], "idea": r["idea"], "family": r["family"],
-                               "state": "unbuilt", "why": fails.get(r["version"], "not on the ledger")[:TRIED_CAP],
-                               "round": self.m["round"], "stage": self._stage_n()})
+                why = failed.get(r["version"]) or "not on the ledger"
+            un = self.m.setdefault("unbuilt", [])
+            if not any(u["name"] == r["name"] for u in un):  # a resumed build does not list it twice
+                un.append({"version": r["version"], "name": r["name"], "idea": r["idea"], "family": r["family"],
+                           "state": "unbuilt", "why": why[:TRIED_CAP], "round": self.m["round"], "stage": self._stage_n()})
+        for v in self.m["versions"]:  # each version's settings for the tried list, read once
+            if "settings" not in v:
+                v["settings"] = _settings_text(self.hb.idea_spec(v["name"]))
+        self._save()
         self._goto("wait")
 
     # ---- 3. wait (no worker runs)
@@ -735,14 +803,18 @@ class Engine:
                 await self._nap(JOB_POLL)
         self._goto("check")
 
-    # ---- 3b. code check: only now, with the tables done, can the Builder's check find the table on file
+    # ---- 3b. code check: only now, with the tables done, can the check find the table on file. The Judge runs it, no worker turn
 
     async def _check(self):
-        vs = [v for v in self._round_versions("done")]
-        if vs:
-            ask = "Run blueprint_code_check on each of these versions:\n" + "\n".join(
-                f"{v['version']} ({v['name']})" for v in vs)
-            await self._turn("builder", "check", ask, max_tool_calls=40, timeout_s=1800)
+        vs = self._round_versions("done")
+        res = await asyncio.gather(*[self._h("check", self.mid, v["name"]) for v in vs], return_exceptions=True)
+        for v, x in zip(vs, res):
+            if isinstance(x, _hb.Refused):
+                self._judge(f"{v['version']}: the code check could not run: {_plain(x)}.")
+            elif isinstance(x, BaseException):
+                raise x
+            elif not (x or {}).get("passed"):
+                self._judge(f"{v['version']}: the code check failed on line {', '.join(map(str, x.get('failed') or [])) or '?'}.")
         self._goto("argue")
 
     # ---- 4. argue
@@ -768,9 +840,23 @@ class Engine:
             self._say(who, f"{v['version']} · {c['charge']}: {c.get('say', '')}")
         return out
 
+    async def _card(self, v):
+        """The Judge's report card of a finished table, once a version: its line is kept, its text posted once."""
+        if "card_line" in v:
+            return
+        try:
+            c = await asyncio.to_thread(self.hb.card, self.mid, v["name"])
+        except (_hb.Refused, _hb.Down):
+            return  # a refusal or an outage: the round goes on without the card
+        v["card_line"] = c.get("line")
+        if c.get("text"):
+            self._judge(c["text"])
+        self._save()
+
     async def _argue(self):
         m = self.m
         for v in self._round_versions("done"):
+            await self._card(v)
             try:
                 t = await self._h("table", self.mid, v["name"])
                 if not t.get("pick"):
@@ -814,7 +900,8 @@ class Engine:
     async def _verdict(self):
         p = self.m["pending"]
         vs = self._round_versions()
-        ask = "\n".join(f"{v['name']}: {v['state']}" + (f", {v['why']}" if v.get("why") else "") for v in vs) \
+        ask = "\n".join(f"{v['name']}: {v['state']}" + (f", {v['why']}" if v.get("why") else "")
+                        + (f". Judge: {v['card_line']}" if v.get("card_line") else "") for v in vs) \
             or "No version this round."
         stall = 0 if any(v.get("gate") for v in vs) else p.get("stall", 0) + 1  # this round counts too
         if STALL_WARN <= stall < STALL_END:
@@ -880,7 +967,7 @@ class Engine:
             ok = [x for x in m["versions"] if x["state"] == "cleared"]
             if not ok or p.get("read_round") == m["round"]:  # one read a round, even after a resume
                 return self._end_round()
-            v = max(ok, key=lambda x: x["gate"]["goal"].get("value") or 0)
+            v = max(ok, key=lambda x: _goal_scalar(x["gate"]["goal"]) or 0)
             said = None
             if m["test_months"] == "ask":
                 if p.get("read_for") != v["name"] or not p.get("read_ok"):

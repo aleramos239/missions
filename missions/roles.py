@@ -14,12 +14,13 @@ _C = {
                         '"exits": "hm40", "target_r": 2, "base": {"mission": 3, "version": "v23"}, "fixed": ["..."], "may_change": ["..."], "fewest_trades_week": 2, "notes": "..."}} '
                         '(target_r: optional, the R target the goal is about, one of 0.5, 0.75, 1, 1.5, 2 (2 for a 1:2 goal); base: optional, only to start already narrowed on a version of an earlier mission, {"mission": <id>, "version": "vNN"}; exits: hm40 default; hm60 adds fixed-point stops 15/25/40/60 pts, only when the owner asks for fixed points; an eval target is a share 0-1; points and net targets are numbers above 0; days: eval only, the weekdays the eval must pass within (default 10); '
                         'years: {"kind": "years", "recent": [2025, 2026], "win_min": 0.40, "rest": "green"}: recent years\' full-target win rate at least win_min, every other year net above 0, no target)'),
-    ("builder", "ideas"): _IDEAS, ("doubter", "ideas"): _IDEAS, ("defender", "ideas"): _IDEAS,
+    ("builder", "ideas"): _IDEAS, ("doubter", "ideas"): _IDEAS.replace("3", "1"),
+    ("defender", "ideas"): _IDEAS.replace("3", "2"),
     ("lead", "ideas"): ('{"plan": [{"version": "v08", "idea": "...", "family": "...", "why": "...", '
                         '"new": "<one line: how it differs from everything in the tried list>"}]} '
                         "(at most 3 a round; new is required: an item without it, or the same idea and family as a "
                         "version already tried, is refused. Never plan a closed branch)"),
-    ("builder", "build"): ('{"built": [{"version": "v08", "name": "m7_v08", "job_id": "..."}], '
+    ("builder", "build"): ('{"built": [{"version": "v08", "name": "m7_v08"}], '
                            '"failed": [{"version": "v09", "why": "..."}]}'),
     ("doubter", "argue"): '{"claims": [{"version": "v08", "charge": "<one of the five charges>", "say": "..."}]}',
     ("defender", "argue"): ('{"answers": [{"version": "v08", "charge": "...", "say": "..."}], '
@@ -40,7 +41,6 @@ _C[("lead", "stage")] = ('{"stage": {"next": "narrow" | "fresh" | "stop", "base"
                          "why: two plain sentences for the owner; report: the full report of this stage, plain words, short sections: what was "
                          "tried (each version, one line), what worked and the numbers, what failed and why, what the next stage should "
                          "try and what to avoid; at least 200 characters. The whole team reads it at the start of the next stage)")
-_C[("builder", "check")] = '{"checked": ["v08"], "failed": [{"version": "v09", "why": "..."}]}'
 _C[("lead", "read")] = ('{"why": "..."} (plain words first, say what the Judge\'s one-line answer means '
                         "and what the next round tries: the team reads it as your orders. You cannot stop the mission. "
                         "No question to the owner: decide yourself)")
@@ -48,8 +48,7 @@ _OWNER = '{"reply": "..."}'
 _STEPS = {"brief": "Write the brief with the owner.",
           "ideas": ("Step: ideas. Write your angles alone. Read the board's tried list first: never propose a version "
                     "already tried, nor anything on the closed list."),
-          "build": "Step: build. Make the planned versions and start their tables.",
-          "check": "Step: code check. Their tables are done. Run `blueprint_code_check` on each version named below, one call each, then stop.",
+          "build": "Step: build. Write the cards of the planned versions. The app starts their tables.",
           "stage": ("Step: stage review. This stage is over: its tries are used, or it was ended early. Stop, look at everything: what worked, what did not. "
                     "If nothing worked, the next stage restarts from zero with fresh ideas. If one idea worked, the next stage works "
                     "only on that idea. Or stop the mission. You also write the stage report: the whole team reads it at the start of the next stage and works off it."),
@@ -58,6 +57,14 @@ _STEPS = {"brief": "Write the brief with the owner.",
                       "close that branch, give new orders, or end the stage."),
           "read": "Step: read. The Judge answered in one line (held, which line, or close). Say what comes next.",
           "owner": "The owner wrote to you. Answer him."}
+_IDEA_JOB = {
+    "builder": ("Your job: ideas the blocks can build that are not already on the board. For each, say the family and "
+                "the settings that matter. At most 3."),
+    "doubter": ("Your job: ONE idea only: the control or stripped-down test that would show whether the best result so "
+                "far is real. Drop one rule, flip the side, take the side by a coin flip, or run the same rule with no filter."),
+    "defender": ("Your job: say in one line why the best version's edge exists and who loses to it. Then at most TWO "
+                 "variations that should do better if that reason is true."),
+}
 
 
 def _read(name):
@@ -69,13 +76,12 @@ def prompt(role, step, *, brief, board, chat, ask, digest=None) -> str:
         raise ValueError(f"bad role or step: {role} {step}")
     if step in ("read", "stage") and role != "lead":
         raise ValueError(f"only the lead speaks at {step}: {role}")
-    if step == "check" and role != "builder":
-        raise ValueError(f"only the builder speaks at check: {role}")
     contract = _OWNER if step == "owner" else _C.get((role, step))
     if role == "lead" and step == "owner":
         contract += ' (the Lead may add "plan_change": "...")'
     contract = contract or "Nothing is asked of you at this step. Reply with plain words only."
-    parts = [_read("common"), _read(role), f"# Step\n\n{_STEPS[step]}\n\nEnd with this json block: {contract}"]
+    text = f"{_STEPS[step]} {_IDEA_JOB[role]}" if step == "ideas" and role in _IDEA_JOB else _STEPS[step]
+    parts = [_read("common"), _read(role), f"# Step\n\n{text}\n\nEnd with this json block: {contract}"]
     if digest:
         parts.append(f"# What lives and what is dead\n\n{digest}")
     for title, body in (("The brief", brief), ("The board", board), ("The chat", chat), ("Asked of you", ask)):

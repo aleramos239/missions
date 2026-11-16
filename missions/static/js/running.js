@@ -1,7 +1,8 @@
-import { esc, pct, ago, hm } from "./fmt.js";
+import { esc, pct, ago, hm, plain } from "./fmt.js";
 import { api } from "./net.js";
 import { DOING } from "./panel.js";
 import { editing, readTeam, roleRow, wire } from "./team.js";
+import { turnStats, whyWords } from "./turns.js";
 import { title, sec, group, acct, mount, tell } from "./ui.js";
 
 const NAMES = { lead: "Lead", builder: "Builder", doubter: "Doubter", defender: "Defender" };
@@ -15,11 +16,11 @@ function usageLine(u, m) {
 }
 
 export default {
-  on: ["step", "progress", "status"],
+  on: ["step", "progress", "status", "turn"],
   render(m, el) {
     if (editing(el)) return;  // a repaint would reset the select the owner has open
     return mount(el, async () => {
-      const [r, c, refused] = await Promise.all([api(`/api/missions/${m.id}/running`), api("/api/connections"), api(`/api/missions/${m.id}/refused`)]);
+      const [r, c, refused, events] = await Promise.all([api(`/api/missions/${m.id}/running`), api("/api/connections"), api(`/api/missions/${m.id}/refused`), api(`/api/missions/${m.id}/events`)]);
       const all = await api("/api/missions").catch(() => []);
       const now = Date.now() / 1000, live = ["running", "waiting_homebase"].includes(m.status);
       const workers = r.workers.map((w) => {
@@ -46,8 +47,17 @@ export default {
       const usage = all.length ? group([...all].sort((a, b) => b.id - a.id).map((x) => acct({ nm: `${x.title} #${x.id}`, sub: String(x.status).replace(/_/g, " "),
         val: `${typeof x.usage_used === "number" ? pct(x.usage_used) : "—"} wk · $${num(x.cost_usd).toFixed(2)} · ${hm(num(x.run_seconds))}` }))
         .concat(acct({ nm: "Total", val: `${pct(sum("usage_used"))} wk · $${sum("cost_usd").toFixed(2)} · ${hm(sum("run_seconds"))}` }))) : `<div class="mcap">No missions yet.</div>`;
+      const ts = turnStats(events), who = (w) => NAMES[w] || String(w), usd = (v) => `$${plain(v, 2)}`;
+      const turns = ts.last.length ? group(ts.totals.map((x) => acct({ nm: who(x.who), val: `${x.turns} ${x.turns === 1 ? "turn" : "turns"} · ${hm(x.secs)} · ${usd(x.cost)}` }))
+        .concat(ts.last.map((e) => {
+          const d = e.data, tools = Array.isArray(d.tools) ? d.tools : [];
+          return acct({ nm: `${who(e.who)} · ${e.text}`, mark: d.ok === false ? "no" : undefined, val: `${ago(d.secs || 0)} · ${usd(d.cost)}`,
+            sub: [`${new Date(e.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · ${tools.length} tool ${tools.length === 1 ? "call" : "calls"}`]
+              .concat(d.ok === false ? [whyWords(d.why)] : []) })
+            .replace('<div class="acct', `<div title="${esc(tools.join(", ") || "no tool calls")}" class="acct`);
+        }))) : `<div class="mcap">No turn yet.</div>`;
       return title(`${busy} of 4 working.`, r.jobs.length ? `${r.jobs.length} test${r.jobs.length === 1 ? "" : "s"} running on this Mac.` : "No test is running.")
-        + sec("Team", team) + sec("Tests", tests) + sec("Machines", mach) + sec("Usage", usage, "Week share is the part of the Claude week each mission used.") + sec("Refused tool calls", ref, "Calls the team made that the Judge's door turned down.");
+        + sec("Team", team) + sec("Tests", tests) + sec("Turns", turns, "Each role's totals, then the last 30 turns, newest first. Hold the pointer on a turn for its tool calls.") + sec("Machines", mach) + sec("Usage", usage, "Week share is the part of the Claude week each mission used.") + sec("Refused tool calls", ref, "Calls the team made that the Judge's door turned down.");
     }, (el) => {
       const rows = el.querySelector("#teamRows");
       if (rows) wire(rows, null, async () => {  // the whole team goes back; the engine reads it before its next turn

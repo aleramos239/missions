@@ -62,12 +62,10 @@ class Turns:
         if step == "build":
             names = sorted(set(re.findall(rf"m{self.mid}_v\d\d", prompt.split("Already on the ledger")[0])))
             for nm in names:
-                self.fake.made_[(self.mid, nm)] = {"wf": True, "job_id": "j1"}
+                self.fake.ledgers.setdefault(self.mid, []).append({"kind": "card", "ref": nm})  # the card row; the Judge's start makes the rest
                 if (nm, "12") not in self.fake.gates:
                     set_fake(self.fake, self.mid, n=nm)
-            return {"built": [{"version": nm[-3:], "name": nm, "job_id": "j1"} for nm in names], "failed": []}
-        if step == "check":
-            return {"checked": re.findall(r"v\d\d", prompt.split("# Asked of you")[-1]), "failed": []}
+            return {"built": [{"version": nm[-3:], "name": nm} for nm in names], "failed": []}
         if step == "stage":
             return {"stage": {"next": "stop", "why": "enough", "report": "r" * 200}}
         if step == "argue" and role == "doubter":
@@ -160,6 +158,9 @@ def test_a_round_runs_the_steps_in_order_and_no_step_is_skipped(kit):
 
 
 def test_ideas_are_written_alone(kit):
+    m = store.load(kit.mid)
+    m["pending"]["focus"] = {"stage": 1, "mode": "narrow", "base": "v01", "text": "t"}  # all three write
+    store.save(m)
     run(round_then_stop(kit).run())
     ideas = [t for t in kit.turns.log if t[1] == "ideas" and t[0] != "lead"]
     assert len(ideas) == 3
@@ -170,20 +171,17 @@ def test_ideas_are_written_alone(kit):
     assert all(f"idea of {r}" in lead[2] for r in ("builder", "doubter", "defender"))
 
 
-def test_an_unreachable_family_is_dropped_before_it_is_built(kit):
+def test_an_unreachable_family_is_still_built_no_reach_check(kit):  # the luck bar is flat (owner 2026-11-16)
     kit.fake.reach["fvg"] = {"family": "fvg", "reachable": False}
     kit.turns.over[("lead", "ideas")] = lambda t: {"plan": [{"version": "v01", "idea": "i", "family": "fvg", "why": "w", "new": "n"}]}
     run(round_then_stop(kit).run())
-    assert not any(t[1] == "build" for t in kit.turns.log)
-    assert any(e["who"] == "judge" and "luck bar needed is above anything fvg has shown" in e["text"]
-               for e in store.events(kit.mid))
+    assert any(t[1] == "build" for t in kit.turns.log) and not any(c[0] == "reach" for c in kit.fake.calls)
 
 
 def test_two_empty_rounds_stop_as_out_of_reach_even_with_run_until_goal(kit):
     m = store.load(kit.mid)
-    m["limits"] = {"until_goal": True}
+    m["limits"], m["empty_rounds"], m["round"] = {"until_goal": True}, 2, 2
     store.save(m)
-    kit.fake.reach["fvg"] = {"family": "fvg", "reachable": False}
     assert run(kit.eng().run()) == "out_of_reach"
     assert store.load(kit.mid)["round"] == 2 and store.load(kit.mid)["status"] == "out_of_reach"
 
@@ -212,7 +210,7 @@ def test_no_worker_runs_while_jobs_run(kit):
     run(round_then_stop(kit).run())
     log = [t[:2] for t in kit.turns.log]
     i = max(k for k, t in enumerate(log) if t[1] == "build")
-    assert log[i + 1][1] == "check" and log[i + 2][1] == "argue"
+    assert log[i + 1][1] == "argue"  # the code check is the Judge's, no worker turn
     assert len([c for c in kit.fake.calls if c[0] == "job"]) >= 3
     assert any(e["type"] == "progress" for e in store.events(kit.mid))
 
@@ -256,6 +254,20 @@ def test_only_a_cleared_version_is_read_and_the_best_goes_first(kit):
     run(round_then_stop(kit).run())
     assert kit.fake.started[0][1] == f"m{kit.mid}_x2"  # one read a round, the best first
     assert all(s[1] != f"m{kit.mid}_x3" for s in kit.fake.started)
+
+
+def test_a_years_goal_reads_the_version_with_the_best_weakest_recent_year(kit):
+    m = store.load(kit.mid)
+    for i, (a, b) in enumerate([(0.80, 0.60), (0.70, 0.65)], 1):
+        rows = [{"year": 2025, "trades": 90, "win_rate": a, "net": 1.0}, {"year": 2026, "trades": 40, "win_rate": b, "net": 1.0}]
+        g = {"clear": True, "goal": {"kind": "years", "recent": [2025, 2026], "value": rows}, "lines": [], "charges": []}
+        m["versions"].append({"name": f"m{kit.mid}_y{i}", "version": f"v2{i}", "round": 0, "family": "fvg",
+                              "job_id": None, "state": "cleared", "box": str(i), "gate": g})
+        kit.fake.reads[f"m{kit.mid}_y{i}"] = {"held": False, "line": "years", "close": "close"}
+    m["step"] = "read"
+    store.save(m)
+    assert run(round_then_stop(kit).run()) != "crashed", [e["text"] for e in store.events(kit.mid) if e["who"] == "engine"]
+    assert kit.fake.started[0][1] == f"m{kit.mid}_y2"  # weakest recent year 0.65 beats 0.60
 
 
 def test_held_ends_the_mission_as_achieved(kit):
@@ -314,11 +326,11 @@ def test_plan_used_up_waits_and_reruns_the_same_turn(kit):
 
 
 def test_a_reply_with_no_json_gets_one_retry_then_the_step_goes_on(kit):
-    kit.turns.over[("doubter", "ideas")] = ["no block here", "still none"]
+    kit.turns.over[("builder", "ideas")] = ["no block here", "still none"]
     run(round_then_stop(kit).run())
-    d = [t for t in kit.turns.log if t[:2] == ("doubter", "ideas")]
+    d = [t for t in kit.turns.log if t[:2] == ("builder", "ideas")]
     assert len(d) == 2 and "end your message with the json block" in d[1][2].lower()
-    assert any("The doubter did not answer" in e["text"] for e in store.events(kit.mid))
+    assert any("The builder did not answer" in e["text"] for e in store.events(kit.mid))
     assert any(t[1] == "build" for t in kit.turns.log)
 
 
@@ -443,9 +455,8 @@ def test_a_lead_reply_with_stop_does_not_end_the_mission(kit):
 
 def test_until_goal_skips_the_limits_in_the_engine(kit):
     m = store.load(kit.mid)
-    m["limits"] = {"until_goal": True}
+    m["limits"], m["empty_rounds"] = {"until_goal": True}, 2
     store.save(m)
-    kit.fake.reach["fvg"] = {"family": "fvg", "reachable": False}
     assert run(kit.eng(system=LimitSys()).run()) == "out_of_reach"
 
 
@@ -457,20 +468,6 @@ def test_two_failed_lead_turns_are_not_empty_rounds(kit):
     m = store.load(kit.mid)
     assert m["empty_rounds"] == 0 and m["round"] == 1 and len(m["versions"]) == 1
     assert any("could not be made or checked" in e["text"] for e in store.events(kit.mid))
-
-
-def test_a_refused_reach_retries_the_round_without_an_empty_round(kit):
-    kit.fake.reach["fvg"] = kit.fake.Refused("no such family 7")
-    n = {"i": 0}
-
-    def lead(t):
-        n["i"] += 1
-        if n["i"] == 2:
-            kit.fake.reach["fvg"] = {"family": "fvg", "reachable": True}
-    kit.turns.over[("lead", "ideas")] = lead
-    assert run(stopper(kit.eng(), kit).run()) == "stopped"
-    m = store.load(kit.mid)
-    assert m["empty_rounds"] == 0 and len(m["versions"]) == 1 and n["i"] == 2
 
 
 def down_for(fake, name, n):
@@ -485,7 +482,7 @@ def down_for(fake, name, n):
     return left
 
 
-@pytest.mark.parametrize("name", ["reach", "made", "job", "table", "gate", "read_result", "start_read", "tries"])
+@pytest.mark.parametrize("name", ["start", "check", "made", "job", "table", "gate", "read_result", "start_read", "tries"])
 def test_a_homebase_outage_waits_and_the_same_step_goes_on(kit, name):
     if name == "tries":
         kit.fake.tries_["fvg"] = {"mission": 1, "family_on_file": 0, "total": 1, "needed_t": 2.0}
@@ -500,14 +497,14 @@ def test_a_homebase_outage_waits_and_the_same_step_goes_on(kit, name):
 
 
 def test_the_outage_backoff_is_capped(kit):
-    down_for(kit.fake, "reach", 6)
+    down_for(kit.fake, "start", 6)
     run(stopper(kit.eng(), kit).run())
     waits = [s for s in kit.clock.slept if s in (1, 2, 4)][:6]
     assert waits == [1, 2, 4, 4, 4, 4]
 
 
 def test_pause_and_stop_are_honoured_while_homebase_is_down(kit):
-    down_for(kit.fake, "reach", 100)
+    down_for(kit.fake, "start", 100)
     orig = kit.clock.sleep
 
     async def sleep(s):
@@ -516,11 +513,11 @@ def test_pause_and_stop_are_honoured_while_homebase_is_down(kit):
     eng = kit.eng()
     eng.sleep = sleep
     assert run(eng.run()) == "paused"
-    assert store.load(kit.mid)["step"] == "ideas"
+    assert store.load(kit.mid)["step"] == "build"
     engine.resume(kit.mid)
     engine._active.clear()
     left = {"n": 0}
-    kit.fake.reach = lambda mid, fam: (_ for _ in ()).throw(kit.fake.Down("x"))
+    kit.fake.start = lambda mid, name: (_ for _ in ()).throw(kit.fake.Down("x"))
     eng2 = kit.eng()
 
     async def sleep2(s):

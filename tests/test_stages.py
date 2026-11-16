@@ -45,9 +45,9 @@ def test_narrow_carries_the_base_idea_and_settings(kit):
     kit.fake.specs["m%d_v01" % kit.mid] = {"stop": 12}
     eng = staged(kit, [{"stage": {"next": "narrow", "base": "v01", "why": "it worked", "report": REPORT}}])
     run(eng.run())
-    p = prompts(kit, "doubter", "ideas")
-    assert "Work only on this idea: variations of it. Base v01: plan idea" in p[1] and 'stop\\": 12' in p[1]
-    assert "Work only on this idea" not in p[0]
+    p = prompts(kit, "doubter", "ideas")  # stage 1 had no score yet: the doubter writes only in the narrow stage
+    assert "Work only on this idea: variations of it. Base v01: plan idea" in p[-1] and 'stop\\": 12' in p[-1]
+    assert "Work only on this idea" not in prompts(kit, "builder", "ideas")[0]
 
 
 def test_stop_ends_the_mission(kit):
@@ -110,12 +110,11 @@ def test_a_new_mission_starts_narrowed_on_another_missions_version(kit3):
     assert "Base v23: fade the gap at 9:35" in p and 'target\\": 2' in p
 
 
-def test_the_builder_checks_the_code_after_the_table(kit):
+def test_the_judge_checks_the_code_after_the_table(kit):
     run(round_then_stop(kit).run())
-    assert [t[:2] for t in kit.turns.log if t[1] in ("build", "check", "argue")][:3] == \
-        [("builder", "build"), ("builder", "check"), ("doubter", "argue")]
-    assert "m%d_v01" % kit.mid in prompts(kit, "builder", "check")[0]
-    assert "blueprint_code_check" in roles._read("builder") and "Do NOT call `blueprint_code_check`" in roles._read("builder")
+    assert [t[:2] for t in kit.turns.log if t[1] in ("build", "check", "argue")][:2] == [("builder", "build"), ("doubter", "argue")]
+    assert ("check", kit.mid, "m%d_v01" % kit.mid) in kit.fake.calls and "check" in steps(kit.mid)
+    assert "Do NOT call `blueprint_wf` or `blueprint_code_check`" in roles._read("builder")
 
 
 def test_no_check_turn_when_no_table_is_done(kit):
@@ -126,13 +125,13 @@ def test_no_check_turn_when_no_table_is_done(kit):
     m["limits"] = {"tries": {"n": 1}}
     store.save(m)
     run(eng.run())
-    assert not prompts(kit, "builder", "check")
+    assert not [c for c in kit.fake.calls if c[0] == "check"]
 
 
 def test_contracts():
     assert '"next": "narrow" | "fresh" | "stop"' in roles._C[("lead", "stage")]
     assert "target_r" in roles._C[("lead", "brief")] and "base" in roles._C[("lead", "brief")]
-    assert '"checked"' in roles._C[("builder", "check")]
+    assert ("builder", "check") not in roles._C and "check" not in roles._STEPS
     with pytest.raises(ValueError):
         roles.prompt("doubter", "stage", brief=None, board=None, chat="", ask=None)
 
@@ -180,7 +179,7 @@ def test_the_stage_report_is_required_saved_and_read_by_the_next_stage(kit):
     assert "stage.report is required" in prompts(kit, "lead", "stage")[1]
     m = store.load(kit.mid)
     assert m["stage_reports"] == [{"stage": 1, "next": "fresh", "base": None, "report": REPORT.strip()}]
-    assert "Report of stage 1" in prompts(kit, "builder", "ideas")[1] and REPORT.strip() in prompts(kit, "doubter", "ideas")[1]
+    assert "Report of stage 1" in prompts(kit, "builder", "ideas")[1] and REPORT.strip() in prompts(kit, "doubter", "ideas")[-1]
     assert "Report of stage 1" not in prompts(kit, "builder", "ideas")[0]
     chat = [e for e in store.events(kit.mid) if e["type"] == "chat" and "Report of stage 1" in (e.get("text") or "")]
     assert chat and chat[0]["for_workers"] and chat[0]["data"]["to_owner"]

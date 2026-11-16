@@ -21,9 +21,11 @@ export default {
           val: v.goal_value == null ? "—" : goalVal(g.kind, v.goal_value) });
       };
       const runRow = (v) => { const p = prog[v.version]; return acct({ nm: v.version, on: true, sub: p ? `in-sample table · box ${p[0]} of ${p[1]}` : "in-sample table", val: "—" }); };
+      const cb = m.unbuilt || [];
       return title(`${list.length} ${list.length === 1 ? "try" : "tries"}.`, "Every version and its picked box. Best first.")
         + (run.length ? sec("Running", group(run.map(runRow))) : "")
-        + sec("Done", done.length ? group(done.map(row)) : `<div class="mcap">Nothing finished yet.</div>`, "A hollow dot is dropped, with the reason. A lock is a version whose test months were read: never run or tuned again.");
+        + sec("Done", done.length ? group(done.map(row)) : `<div class="mcap">Nothing finished yet.</div>`, "A hollow dot is dropped, with the reason. A lock is a version whose test months were read: never run or tuned again.")
+        + (cb.length ? sec("Could not be built", group(cb.map((c) => acct({ nm: c.idea, sub: `${c.family} · round ${c.round} · ${c.why}`, val: "—" }))), "Ideas that could not be built or started; each row says why. A new block is yours to add.") : "");
     });
   },
 };
