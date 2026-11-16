@@ -152,7 +152,7 @@ def owner_says(mid, to, text) -> dict:
         raise ValueError(f"bad recipient: {to}")
     e = store.event(mid, "chat", "owner", text, to=None if to == "all" else to)
     t = _answers.get(mid)
-    if to != "all" and mid not in _active and store.load(mid)["status"] in ("paused", "waiting_owner") \
+    if to != "all" and mid not in _active and store.load(mid)["status"] in ("paused", "waiting_owner", *store.DONE) \
             and not (t and not t.done()):  # one answer task a mission: extra calls are dropped
         try:
             _answers[mid] = asyncio.get_running_loop().create_task(Engine(mid).answer())
