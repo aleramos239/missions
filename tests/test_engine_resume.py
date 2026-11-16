@@ -45,7 +45,8 @@ def test_a_death_in_build_resumes_without_making_a_version_twice(kit):
 def test_the_build_prompt_after_a_death_lists_the_names_already_on_the_ledger(kit):
     n = f"m{kit.mid}_v01"
     kit.turns.over[("lead", "ideas")] = {"plan": [
-        {"version": "v01", "idea": "a", "family": "fvg", "why": "w"}, {"version": "v02", "idea": "b", "family": "fvg", "why": "w"}]}
+        {"version": "v01", "idea": "a", "family": "fvg", "why": "w", "new": "n"},
+        {"version": "v02", "idea": "b", "family": "fvg", "why": "w", "new": "n"}]}
 
     def die(t):
         kit.fake.made_[(kit.mid, n)] = {"wf": True, "job_id": "j1"}

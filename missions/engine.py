@@ -19,6 +19,9 @@ JOB_POLL, READ_POLL, JOB_LIMIT = 30, 20, 90 * 60
 MAX_FAILED_ROUNDS = 6  # Lead plans that could not be made or checked, in a row: then the mission crashes
 NO_JOB_WAIT = 10 * 60  # a wf row with no job row yet: wait this long for the job before calling the version done
 READ_LIMIT, READ_SLOW = 6 * 3600, 300  # after READ_LIMIT s the read is polled every READ_SLOW s, with a line
+STALL_WARN, STALL_END = 2, 3  # rounds in a row with no version scored: then the Lead is told / the engine ends the stage
+TRIED_CAP, TRIED_MAX = 120, 60  # the team's "tried so far" list: chars per text, lines kept
+CLOSE_MIN = 2  # a closed branch cites at least this many dropped or failed versions of this mission
 OWNER_KEYS = ("limits", "test_months", "team")
 _active = set()
 _answers = {}  # mid -> the one answer task
@@ -66,6 +69,14 @@ def _goal_scalar(goal):
         return v
     by = {r["year"]: r["win_rate"] for r in v}
     return min((by.get(y, 0.0) for y in goal.get("recent") or []), default=None)
+
+
+def _norm(text):
+    return re.sub(r"[^a-z0-9]+", " ", str(text or "").lower()).strip()
+
+
+def _vnum(v):
+    return int(v["version"][1:]) if str(v.get("version", ""))[1:].isdigit() else 0
 
 
 def _ask_path(mid):
@@ -264,7 +275,32 @@ class Engine:
                            "per": ((m["limits"] or {}).get("tries") or {}).get("n"),
                            "focus": (m["pending"].get("focus") or {}).get("text"),
                            "reports": m.get("stage_reports") or []},
-                "tries": tries, "versions": out, "best": best, "reads": m["reads"]}
+                "tries": tries, "versions": out, "best": best, "reads": m["reads"], "tried": self._tried(),
+                "closed": m.get("closed") or [], "stall": m["pending"].get("stall", 0)}
+
+    def _all_tried(self):
+        """Every version of this mission, built or not, oldest first."""
+        return sorted([*self.m["versions"], *(self.m.get("unbuilt") or [])], key=_vnum)
+
+    def _tried(self):
+        """One short line per version of this mission, every stage: what it was and how it ended."""
+        out = []
+        for v in self._all_tried()[-TRIED_MAX:]:
+            g, st = v.get("gate") or {}, v["state"]
+            if st == "unbuilt":
+                res = f"build failed: {v.get('why')}"
+            elif st == "dropped":
+                res = f"dropped: {v.get('why')}"
+            elif g:
+                bad = [x["line"] for x in g.get("lines", []) if not x.get("ok")]
+                res = f"{st}, box {v.get('box_label')}, goal {_goal_scalar(g.get('goal') or {})}" \
+                    + (f", lines failed: {', '.join(bad)}" if bad else "") \
+                    + (f", test months held={v['heard'].get('held')}: {v['heard'].get('line')}" if v.get("heard") else "")
+            else:
+                res = st
+            out.append(f"{v['version']} (stage {v.get('stage', 1)}) [{v.get('family')}] "
+                       f"{(v.get('idea') or '')[:TRIED_CAP]} -> {res[:TRIED_CAP]}")
+        return out
 
     async def _refresh_tries(self, family):
         if not family:
@@ -310,7 +346,8 @@ class Engine:
             if not ok:
                 await self._wait_plan(resets)
                 continue
-            pr = roles.prompt(role, step, brief=self.m["brief"], board=self.board(), chat=chat, ask=ask or None,
+            board = {k: v for k, v in self.board().items() if k != "versions"}  # "tried" says the same, shorter
+            pr = roles.prompt(role, step, brief=self._brief_for(), board=board, chat=chat, ask=ask or None,
                               digest=digest)
             t = await self.run_turn(self.mid, role, pr, model=team["model"], effort=team["effort"],
                                     session_id=session, **kw)
@@ -327,6 +364,17 @@ class Engine:
                 await self._wait_plan(t.resets_at)
                 continue
             return t
+
+    def _brief_for(self):
+        """A fresh stage is free of the old idea: its idea, fixed lines, allowed changes and base no longer bind."""
+        b = self.m["brief"]
+        if not b or (self.m["pending"].get("focus") or {}).get("mode") != "fresh":
+            return b
+        out = {k: v for k, v in b.items() if k not in ("idea", "fixed", "may_change", "base")}
+        out["fresh"] = ("This stage is free to try a new idea. The old idea, its fixed lines and its allowed changes no longer "
+                        "bind. The goal, NQ, the exits, the R target and the fewest trades a week still hold. "
+                        f"The old idea was: {b.get('idea')}")
+        return out
 
     async def _turn(self, role, step, ask="", *, exclude=(), digest=None, **kw):
         """(turn, reply dict) or (None, None) after one retry. The prompt's chat is fixed once, so a retry repeats it."""
@@ -409,6 +457,13 @@ class Engine:
             if _asked(self.mid) == "pause":
                 raise _Done("paused")
             return "stage"
+        if m["pending"].get("end_stage"):  # the Lead or the stall backstop ended the stage early: unused tries are not kept
+            if not (m["limits"] or {}).get("until_goal") and self._stage_n() >= self._stages():
+                self._say("engine", "The last stage ended early: the mission ends.", for_workers=False)
+                raise _Done("limit")
+            if _asked(self.mid) == "pause":
+                raise _Done("paused")
+            return "stage"
         if m["empty_rounds"] >= 2:
             raise _Done("out_of_reach")
         if _asked(self.mid) == "pause":
@@ -446,7 +501,10 @@ class Engine:
                    f"goal {_goal_scalar((v.get('gate') or {}).get('goal') or {})}, lines failed "
                    f"{[x['line'] for x in (v.get('gate') or {}).get('lines', []) if not x.get('ok')]}")
                 for v in self._stage_versions()]
-        return f"Stage {self._stage_n()} of {self._stages()} is over: {self._tries_used()} tries used.\n" + "\n".join(rows)
+        end = self.m["pending"].get("end_stage")
+        how = {"lead": ", ended early by you", "stalled": f", ended by the engine: {STALL_END} rounds in a row with no version scored"}
+        return (f"Stage {self._stage_n()} of {self._stages()} is over{how.get(end, '')}: {self._tries_used()} tries used.\n"
+                + "\n".join(rows))
 
     def _stage_why(self, st):
         if not isinstance(st, dict) or st.get("next") not in ("narrow", "fresh", "stop"):
@@ -480,7 +538,10 @@ class Engine:
         if isinstance(st.get("why"), str):
             self._say("lead", st["why"], for_workers=False, data={"to_owner": True})
         n = self._stage_n()
-        m.setdefault("stage_reports", []).append({"stage": n, "next": st["next"], "base": st.get("base"), "report": st["report"].strip()})
+        rep_row = {"stage": n, "next": st["next"], "base": st.get("base"), "report": st["report"].strip()}
+        if p.get("end_stage"):
+            rep_row["ended"] = p["end_stage"]  # "lead" (ended early) or "stalled" (the engine ended it)
+        m.setdefault("stage_reports", []).append(rep_row)
         self._say("lead", f"Report of stage {n}:\n{st['report'].strip()}", data={"to_owner": True})
         if st["next"] == "stop":
             self._say("engine", f"Stage {n} is over. The Lead stops the mission.", for_workers=False)
@@ -494,7 +555,8 @@ class Engine:
         f = p["focus"]
         f["text"] = self._with_report(f["text"])
         self._save()
-        p["next"] = p["fixes"] = None
+        p["next"] = p["fixes"] = p["end_stage"] = None
+        p["stall"] = 0
         m["empty_rounds"] = 0
         self._say("engine", f"Stage {n} is over. Stage {n + 1} of {self._stages()}: "
                   + (f"narrow on {st['base']}." if st["next"] == "narrow" else "fresh ideas."), for_workers=False)
@@ -509,7 +571,8 @@ class Engine:
 
     async def _ideas(self):
         m, p = self.m, self.m["pending"]
-        alone = f"The Lead said last round: {p['next']}" if p.get("next") else ""
+        alone = (f"The Lead's orders for this round (they bind what you propose; bring your own angle inside them): "
+                 f"{p['next']}") if p.get("next") else ""
         res = await asyncio.gather(*[self._turn(r, "ideas", alone, digest=self._digest_text()) for r in ROLES3])
         ideas = {}
         for r, (_, rep) in zip(ROLES3, res):
@@ -524,9 +587,28 @@ class Engine:
             ask.append(f"The owner's change to the plan: {p['plan_change']}")
         if p.get("next"):
             ask.append(f"What you said the next round tries: {p['next']}")
-        t, rep = await self._turn("lead", "ideas", "\n".join(ask), digest=self._digest_text())
-        rows = [r for r in ((rep or {}).get("plan") or []) if isinstance(r, dict) and isinstance(r.get("idea"), str)
-                and isinstance(r.get("family"), str)][:3]
+        ask = "\n".join(ask)
+        seen = {(_norm(v.get("idea")), v.get("family")): v["version"] for v in self._all_tried()}
+        for attempt in (0, 1):
+            t, rep = await self._turn("lead", "ideas", ask, digest=self._digest_text())
+            rows, bad, keys = [], [], dict(seen)
+            for r in ((rep or {}).get("plan") or []):
+                if not (isinstance(r, dict) and isinstance(r.get("idea"), str) and isinstance(r.get("family"), str)):
+                    continue
+                k = (_norm(r["idea"]), r["family"])
+                if not isinstance(r.get("new"), str) or not r["new"].strip():
+                    bad.append(f'"{r["idea"][:80]}" has no "new" line saying how it differs from everything tried')
+                elif k in keys:
+                    bad.append(f'"{r["idea"][:80]}" ({r["family"]}) is the same as {keys[k]}, already tried')
+                else:
+                    keys[k] = "another item of this plan"
+                    rows.append(r)
+            if t is None or not bad or attempt:
+                break
+            ask = f"Your plan was refused: {'; '.join(bad)}. Plan again.\n\n{ask}"
+        for b in bad:
+            self._say("engine", f"A plan item is refused: {b}.")
+        rows = rows[:3]
         plan, unchecked = [], t is None or not rows  # no usable plan is a failed round, never an empty one
         for r in rows:
             p["vn"] = n = p.get("vn", max((int(v["version"][1:]) for v in m["versions"]), default=0)) + 1
@@ -586,7 +668,7 @@ class Engine:
         return True
 
     async def _build(self):
-        plan, jobs = self.m["pending"]["plan"], {}
+        plan, jobs, fails = self.m["pending"]["plan"], {}, {}
         for attempt in (0, 1):
             for r in plan:
                 await self._register(r, jobs.get(r["version"]))
@@ -603,9 +685,17 @@ class Engine:
             for b in (rep or {}).get("built") or []:
                 if isinstance(b, dict):
                     jobs[b.get("version")] = b.get("job_id")
+            for f in (rep or {}).get("failed") or []:
+                if isinstance(f, dict) and isinstance(f.get("why"), str):
+                    fails[f.get("version")] = f["why"]
         for r in plan:
             if not await self._register(r, jobs.get(r["version"])):
                 self._judge(f"{r['version']} is not on the ledger and is dropped.")
+                un = self.m.setdefault("unbuilt", [])
+                if not any(u["name"] == r["name"] for u in un):  # a resumed build does not list it twice
+                    un.append({"version": r["version"], "name": r["name"], "idea": r["idea"], "family": r["family"],
+                               "state": "unbuilt", "why": fails.get(r["version"], "not on the ledger")[:TRIED_CAP],
+                               "round": self.m["round"], "stage": self._stage_n()})
         self._goto("wait")
 
     # ---- 3. wait (no worker runs)
@@ -721,18 +811,64 @@ class Engine:
     # ---- 5. verdict
 
     async def _verdict(self):
+        p = self.m["pending"]
         vs = self._round_versions()
         ask = "\n".join(f"{v['name']}: {v['state']}" + (f", {v['why']}" if v.get("why") else "") for v in vs) \
             or "No version this round."
+        stall = 0 if any(v.get("gate") for v in vs) else p.get("stall", 0) + 1  # this round counts too
+        if STALL_WARN <= stall < STALL_END:
+            ask += (f"\n\nThe stage is stalled: {stall} rounds in a row with no version scored. Close the branch that keeps "
+                    "failing and change direction, or end the stage. One more round like this and the engine ends the stage.")
         _, rep = await self._turn("lead", "verdict", ask)
         if rep:
             if isinstance(rep.get("to_owner"), str):
                 self._say("lead", rep["to_owner"], for_workers=False, data={"to_owner": True})
             if isinstance(rep.get("next"), str):
-                self.m["pending"]["next"] = rep["next"]
+                p["next"] = rep["next"]
+            self._closures(rep)
+            if rep.get("end_stage") is True:
+                p["end_stage"] = "lead"
+                self._say("engine", f"The Lead ends stage {self._stage_n()} early: the stage review comes next.")
+        p["stall"] = stall
+        if stall >= STALL_END and not p.get("end_stage"):
+            p["end_stage"] = "stalled"
+            self._say("engine", f"Stage {self._stage_n()} is stalled: {stall} rounds in a row with no version scored. "
+                      "The engine ends the stage: the stage review comes next.")
         for v in self._round_versions("gated"):
             v["state"] = "cleared" if v["gate"].get("clear") else "scored"
         self._goto("read")
+
+    def _failed(self, ref):
+        """A version of this mission (by version or name) that was dropped, never built, or failed its test months."""
+        v = next((x for x in self._all_tried() if isinstance(ref, str) and ref in (x["version"], x["name"])), None)
+        if v and (v["state"] in ("dropped", "unbuilt", "spent")
+                  or (v["state"] == "frozen" and not (v.get("heard") or {}).get("held"))):
+            return v
+
+    def _closures(self, rep):
+        """The Lead's "close" and "reopen": this mission only, a closure only with proof (CLOSE_MIN failed versions)."""
+        closed = self.m.setdefault("closed", [])
+        for c in rep.get("close") or []:
+            what = c.get("what") if isinstance(c, dict) else None
+            if not isinstance(what, str) or not what.strip():
+                continue
+            what = what.strip()[:300]
+            cited = c.get("versions") if isinstance(c.get("versions"), list) else []
+            proof = sorted({v["version"] for v in map(self._failed, cited) if v}, key=lambda x: _vnum({"version": x}))
+            if any(_norm(x["what"]) == _norm(what) for x in closed):
+                continue
+            if len(proof) < CLOSE_MIN:
+                self._say("engine", f'Closing "{what}" is refused: it needs at least {CLOSE_MIN} versions of this mission '
+                          f"that were dropped or failed; it names {', '.join(map(str, cited)) or 'none'}.")
+                continue
+            reason = str(c.get("reason") or "")[:300]
+            closed.append({"what": what, "reason": reason, "versions": proof, "stage": self._stage_n(), "by": "lead"})
+            self._say("engine", f'Closed for this mission: "{what}" ({", ".join(proof)}). {reason}'.strip())
+        for w in rep.get("reopen") or []:
+            keep = [x for x in closed if _norm(x["what"]) != _norm(w)]
+            if len(keep) < len(closed):
+                closed[:] = keep
+                self._say("engine", f'Reopened: "{w}". It may be proposed again.')
 
     # ---- 6. read
 
@@ -785,7 +921,7 @@ class Engine:
             raise _Done("achieved")
         _, rep = await self._turn("lead", "read", f"The Judge answered: {heard}")
         if rep and isinstance(rep.get("why"), str):  # advice only: the Lead never ends a mission
-            p["next"] = rep["why"]
+            p["next"] = f"{p['next']}\nAfter the test months: {rep['why']}" if p.get("next") else rep["why"]
         self._save()
 
     def _end_round(self):

@@ -15,14 +15,24 @@ _C = {
                         '(target_r: optional, the R target the goal is about, one of 0.5, 0.75, 1, 1.5, 2 (2 for a 1:2 goal); base: optional, only to start already narrowed on a version of an earlier mission, {"mission": <id>, "version": "vNN"}; exits: hm40 default; hm60 adds fixed-point stops 15/25/40/60 pts, only when the owner asks for fixed points; an eval target is a share 0-1; points and net targets are numbers above 0; days: eval only, the weekdays the eval must pass within (default 10); '
                         'years: {"kind": "years", "recent": [2025, 2026], "win_min": 0.40, "rest": "green"}: recent years\' full-target win rate at least win_min, every other year net above 0, no target)'),
     ("builder", "ideas"): _IDEAS, ("doubter", "ideas"): _IDEAS, ("defender", "ideas"): _IDEAS,
-    ("lead", "ideas"): ('{"plan": [{"version": "v08", "idea": "...", "family": "...", "why": "..."}]} '
-                        "(at most 3 a round)"),
+    ("lead", "ideas"): ('{"plan": [{"version": "v08", "idea": "...", "family": "...", "why": "...", '
+                        '"new": "<one line: how it differs from everything in the tried list>"}]} '
+                        "(at most 3 a round; new is required: an item without it, or the same idea and family as a "
+                        "version already tried, is refused. Never plan a closed branch)"),
     ("builder", "build"): ('{"built": [{"version": "v08", "name": "m7_v08", "job_id": "..."}], '
                            '"failed": [{"version": "v09", "why": "..."}]}'),
     ("doubter", "argue"): '{"claims": [{"version": "v08", "charge": "<one of the five charges>", "say": "..."}]}',
     ("defender", "argue"): ('{"answers": [{"version": "v08", "charge": "...", "say": "..."}], '
                             '"fixes": [{"idea": "...", "family": "...", "why": "..."}]}'),
-    ("lead", "verdict"): '{"to_owner": "<two plain sentences>", "next": "<what the next round tries>"}',
+    ("lead", "verdict"): ('{"to_owner": "<two plain sentences: what happened and what you decided>", '
+                          '"next": "<your orders for the next round: what the team tries>", '
+                          '"close": [{"what": "<the exact combination, e.g. first-candle check on top of v23>", '
+                          '"reason": "...", "versions": ["v07", "v08"]}], "reopen": ["<what>"], "end_stage": true} '
+                          "(close, reopen and end_stage are optional. close: a branch of THIS mission that keeps failing; "
+                          "it needs at least 2 versions of this mission that were dropped or failed, or it is refused. "
+                          "reopen: a closed what that is worth trying again, e.g. the base idea changed. "
+                          "end_stage: true ends this stage now, its unused tries are not kept; the stage review comes next. "
+                          "No question to the owner: decide yourself)"),
 }
 _C[("lead", "stage")] = ('{"stage": {"next": "narrow" | "fresh" | "stop", "base": "v23", "why": "...", "report": "..."}} '
                          "(narrow: the next stage works only on variations of one scored version, base is required and must be one "
@@ -31,16 +41,21 @@ _C[("lead", "stage")] = ('{"stage": {"next": "narrow" | "fresh" | "stop", "base"
                          "tried (each version, one line), what worked and the numbers, what failed and why, what the next stage should "
                          "try and what to avoid; at least 200 characters. The whole team reads it at the start of the next stage)")
 _C[("builder", "check")] = '{"checked": ["v08"], "failed": [{"version": "v09", "why": "..."}]}'
-_C[("lead", "read")] = ('{"why": "..."} (advice only: plain words first, say what the Judge\'s one-line answer means '
-                        "and what the next round could try. You cannot stop the mission)")
+_C[("lead", "read")] = ('{"why": "..."} (plain words first, say what the Judge\'s one-line answer means '
+                        "and what the next round tries: the team reads it as your orders. You cannot stop the mission. "
+                        "No question to the owner: decide yourself)")
 _OWNER = '{"reply": "..."}'
-_STEPS = {"brief": "Write the brief with the owner.", "ideas": "Step: ideas. Write your angles alone.",
+_STEPS = {"brief": "Write the brief with the owner.",
+          "ideas": ("Step: ideas. Write your angles alone. Read the board's tried list first: never propose a version "
+                    "already tried, nor anything on the closed list."),
           "build": "Step: build. Make the planned versions and start their tables.",
           "check": "Step: code check. Their tables are done. Run `blueprint_code_check` on each version named below, one call each, then stop.",
-          "stage": ("Step: stage review. The tries of this stage are used. Stop, look at everything: what worked, what did not. "
+          "stage": ("Step: stage review. This stage is over: its tries are used, or it was ended early. Stop, look at everything: what worked, what did not. "
                     "If nothing worked, the next stage restarts from zero with fresh ideas. If one idea worked, the next stage works "
                     "only on that idea. Or stop the mission. You also write the stage report: the whole team reads it at the start of the next stage and works off it."),
-          "argue": "Step: argue.", "verdict": "Step: verdict. Sum up the round.",
+          "argue": "Step: argue.",
+          "verdict": ("Step: verdict. Sum up the round. Read the tried list: if the team keeps rebuilding the same thing, "
+                      "close that branch, give new orders, or end the stage."),
           "read": "Step: read. The Judge answered in one line (held, which line, or close). Say what comes next.",
           "owner": "The owner wrote to you. Answer him."}
 

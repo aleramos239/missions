@@ -56,7 +56,7 @@ class Turns:
     def default(self, role, step, prompt):
         n = self.n
         if step == "ideas" and role == "lead":
-            return {"plan": [{"version": "v01", "idea": "plan idea", "family": "fvg", "why": "w"}]}
+            return {"plan": [{"version": "v01", "idea": f"plan idea {n}", "family": "fvg", "why": "w", "new": "n"}]}
         if step == "ideas":
             return {"ideas": [{"idea": f"idea of {role} {n}", "family": "fvg", "why": "w"}]}
         if step == "build":
@@ -172,7 +172,7 @@ def test_ideas_are_written_alone(kit):
 
 def test_an_unreachable_family_is_dropped_before_it_is_built(kit):
     kit.fake.reach["fvg"] = {"family": "fvg", "reachable": False}
-    kit.turns.over[("lead", "ideas")] = lambda t: {"plan": [{"version": "v01", "idea": "i", "family": "fvg", "why": "w"}]}
+    kit.turns.over[("lead", "ideas")] = lambda t: {"plan": [{"version": "v01", "idea": "i", "family": "fvg", "why": "w", "new": "n"}]}
     run(round_then_stop(kit).run())
     assert not any(t[1] == "build" for t in kit.turns.log)
     assert any(e["who"] == "judge" and "luck bar needed is above anything fvg has shown" in e["text"]
@@ -438,7 +438,7 @@ def test_a_lead_reply_with_stop_does_not_end_the_mission(kit):
     eng.system.limit_hit = limit
     assert run(eng.run()) == "limit"
     m = store.load(kit.mid)
-    assert m["round"] == 1 and m["reads"] == 1 and m["pending"]["next"] == "stop now"
+    assert m["round"] == 1 and m["reads"] == 1 and m["pending"]["next"].endswith("After the test months: stop now")
 
 
 def test_until_goal_skips_the_limits_in_the_engine(kit):
